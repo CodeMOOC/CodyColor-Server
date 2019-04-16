@@ -4,6 +4,8 @@
  * serverScript.js: script node.Js che gestisce il server di CodyColor:
  */
 
+const HOST = process.env.HOST || 'rabbit';
+const PORT = process.env.PORT || 15674;
 
 console.log(' [x] CodyColor gameServer');
 console.log(' [x] Project by Riccardo Maldini');
@@ -24,14 +26,15 @@ var gameRoomsTopic = '/topic/gameRooms';
 
 // istanza per il collegamento al broker tramite protocollo STOMP w. WebSocket
 // utilizza la libreria esterna npm 'stompjs'
-console.log(" [.] Initializing StompJs API...")
+const stompUrl = 'ws://' + HOST + ':' + PORT + '/ws';
+console.log(" [.] Initializing StompJs API at " + stompUrl + "...");
 var Stomp = require('stompjs');
-client = Stomp.overWS('http://127.0.0.1:15674/ws');
+client = Stomp.overWS(stompUrl);
 
 // avvia la connessione con il sever, con le credenziali corrette
 console.log(" [.] Trying to connect to the broker...");
 client.connect('guest', 'guest',         // username e password
-			   onConnect, onError, '/'); // callbacks e vHost
+    onConnect, onError, '/'); // callbacks e vHost
 
 
 // cosa fare n caso di errore nella connessione o nel processare dei messaggi
@@ -127,7 +130,7 @@ function disconnectUser(gameRoomId, playerId) {
     console.log(" [.] User removed from gameRooms array");
                             
     var response = { 
-    				 msgType: "disconnect",
+                     msgType: "disconnect",
                     'gameRoomId': gameRoomId,
                     'playerId': playerId 
                    }; 

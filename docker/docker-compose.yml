@@ -1,0 +1,29 @@
+version: '3'
+
+networks:
+  web:
+    external: true
+  backend:
+
+services:
+  rabbit:
+    image: beevelop/rabbitmq-stomp
+    networks:
+    - web
+    - backend
+    env_file: ../config.env
+    expose:
+    - "15674"
+    labels:
+    - "traefik.enable=true"
+    - "traefik.docker.network=web"
+    - "traefik.protocol=http"
+    - "traefik.port=15674"
+    - "traefik.frontend.rule=Host:botify.it;PathPrefixStrip:/codycolor"
+    - "traefik.frontend.entryPoints=http"
+
+  server:
+    build: ../src/codycolor-server
+    networks:
+    - backend
+    env_file: ../config.env

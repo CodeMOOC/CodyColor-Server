@@ -1,0 +1,31 @@
+{
+    "name": "codycolor-server",
+    "version": "1.0.0",
+    "description": "CodyColor server component",
+    "main": "serverScript.js",
+    "scripts": {
+        "start": "node serverScript.js"
+    },
+    "dependencies": {
+        "debug": "~2.6.9",
+        "is-typedarray": "^1.0.0",
+        "ms": "~2.1.1",
+        "nan": "^2.13.2",
+        "stompjs": "~2.3.3",
+        "typedarray-to-buffer": "^3.1.5",
+        "websocket": "^1.0.28",
+        "yaeti": "~1.0.2"
+    },
+    "engines": {
+        "node": "4.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/digit-srl/CodyColorServer"
+    },
+    "author": "Riccardo Maldini",
+    "contributors": [
+        "Riccardo Maldini <riccardo.maldini@gmail.com>"
+    ],
+    "license": "MIT"
+}
