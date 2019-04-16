@@ -27,3 +27,5 @@ services:
     networks:
     - backend
     env_file: ../config.env
+    depends_on:
+    - rabbit
