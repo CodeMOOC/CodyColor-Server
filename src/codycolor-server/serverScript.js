@@ -13,28 +13,28 @@ console.log('');
 let gameRooms = [];
 
 // queue e topic utilizzati nelle comunicazioni con il broker
-const serverControlQueue = "/queue/serverControl";
+const serverControlQueue  = "/queue/serverControl";
 const clientsControlTopic = '/topic/clientsControl';
-const gameRoomsTopic = '/topic/gameRooms';
+const gameRoomsTopic      = '/topic/gameRooms';
 
 // istanza per il collegamento al broker tramite protocollo STOMP WebSocket
 // utilizza la libreria esterna npm 'stompjs'
-const HOST = process.env.HOST || 'rabbit';
-const PORT = process.env.PORT || 15674;
+const HOST     = process.env.HOST || 'rabbit';
+const PORT     = process.env.PORT || 15674;
 const stompUrl = 'ws://' + HOST + ':' + PORT + '/ws';
-console.log(" [.] Initializing StompJs API at " + stompUrl + "...");
 
+console.log(" [.] Initializing StompJs API at " + stompUrl + "...");
 let Stomp = require('stompjs');
 let client = Stomp.overWS(stompUrl);
 
-// avvia la connessione con il sever, con le credenziali corrette
+// avvia la connessione con il server, con le credenziali corrette
 console.log(" [.] Trying to connect to the broker...");
 client.connect('guest', 'guest',         // username e password
                onConnect, onError, '/'); // callbacks e vHost
 
 // cosa fare n caso di errore nella connessione o nel processare dei messaggi
 function onError() {
-    console.log(" [x] Error connecting to the broker or processing messages");
+    console.log(" [x] Error connecting to the broker, or processing messages");
 }
 
 // cosa fare a connessione avvenuta
@@ -43,8 +43,15 @@ function onConnect() {
 
     // si pone in ascolto di messaggi dai client nella queue server
     client.subscribe(serverControlQueue, function(receivedMessage) {
-        let recMsgBody = JSON.parse(receivedMessage.body);
-        switch(recMsgBody.msgType) {
+        let messageBody = JSON.parse(receivedMessage.body);
+
+        if (messageBody.gameRoomId === -1 || messageBody.msgType === undefined) {
+            console.log(" [.] Received invalid message; ignored.");
+            console.log(" [x] Waiting for messages...");
+            return;
+        }
+
+        switch (messageBody.msgType) {
             case "gameRequest":
                 // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms
                 // e comunica al client playerId e gameRoom assegnatigli
@@ -53,42 +60,43 @@ function onConnect() {
                 console.log(" [.] Client added to gameRoom array. User params: [%d][%d]",
                     playerData.gameRoomId, playerData.playerId);
 
-                console.log(" [.] New game room configuration:");
                 printGameRooms();
 
-                let gameResponse = { msgType:  "gameResponse",
+                let response = { msgType:   "gameResponse",
                                  gameRoomId: playerData.gameRoomId,
                                  playerId:   playerData.playerId };
 
-                client.send(clientsControlTopic + '.' + recMsgBody['correlationId'],
-                    {}, JSON.stringify(gameResponse));
+                client.send(clientsControlTopic + '.' + messageBody['correlationId'],
+                    {}, JSON.stringify(response));
+
                 console.log(" [.] Sent gameResponse response to the client");
-                console.log(" [x] Waiting for messages...");
                 break;
 
             case "quitGame":
                 // richiesta diretta di terminazione partita. Si rimuove il client dall'array gameRoom
                 console.log(" [.] Received quit game request from client [%d][%d]",
-                    recMsgBody.gameRoomId, recMsgBody.playerId);
+                    messageBody.gameRoomId, messageBody.playerId);
 
-                removeUserFromGameRoom(recMsgBody.gameRoomId, recMsgBody.playerId);
+                removeUserFromGameRoom(messageBody.gameRoomId, messageBody.playerId);
                 console.log(" [.] User removed from gameRooms array");
-                console.log(' [.] New gameRoom configuration:');
                 printGameRooms();
-                console.log(" [x] Waiting for messages...");
                 break;
 
             case "heartbeat":
                 // ricevuto un heartbeat dal client. Se il server non riceve heartBeat da un client per più
                 // di 10 secondi, lo rimuove dal gioco e notifica la game room
-                console.log(" [.] Received heartbeat from client [%d][%d]", recMsgBody.gameRoomId, recMsgBody.playerId);
-                updateHeartBeat(recMsgBody.gameRoomId, recMsgBody.playerId);
-                console.log(" [x] Waiting for messages...");
+                if (gameRooms[messageBody.gameRoomId][messageBody.playerId] !== undefined) {
+                    console.log(" [.] Received heartbeat from client [%d][%d]",
+                        messageBody.gameRoomId, messageBody.playerId);
+                    updateHeartBeat(messageBody.gameRoomId, messageBody.playerId);
+                } else {
+                    console.log(" [.] Received invalid heartbeat");
+                }
                 break;
 
             case "tilesRequest":
                 // un client ha richiesto una nuova disposizione di tiles per la propria gameRoom
-                console.log(" [.] Received tiles request from gameRoom [%d]", recMsgBody.gameRoomId);
+                console.log(" [.] Received tiles request from gameRoom [%d]", messageBody.gameRoomId);
 
                 // genera tiles casuali, rappresentandole tramite una stringa, in cui ogni carattere
                 // rappresenta una casella
@@ -108,24 +116,23 @@ function onConnect() {
                 }
 
                 let tilesResponse = { msgType:   "tilesResponse",
-                                 gameRoomId: recMsgBody.gameRoomId,
-                                 playerId:  "server",
-                                 tiles:      tilesValue };
+                                      gameRoomId: messageBody.gameRoomId,
+                                      playerId:  "server",
+                                      tiles:      tilesValue };
 
                 // invia una notifica alla gameRoom
-                client.send(gameRoomsTopic + '.' + recMsgBody.gameRoomId,
+                client.send(gameRoomsTopic + '.' + messageBody.gameRoomId,
                     {}, JSON.stringify(tilesResponse));
 
-                console.log(" [.] Sent tiles response to gameRoom [%d]: '%s'", recMsgBody.gameRoomId, tilesValue);
-                console.log(" [x] Waiting for messages...");
+                console.log(" [.] Sent tiles response to gameRoom [%d]: '%s'", messageBody.gameRoomId, tilesValue);
                 break;
 
             default:
                 // messaggio senza tipologia: utilizzato per i test
-                console.log(" [.] Received unknown message: " + recMsgBody.toString());
-                console.log(" [x] Waiting for messages...");
+                console.log(" [.] Received unknown message: " + messageBody.toString());
                 break;
         }
+        console.log(" [x] Waiting for messages...");
 
     }, { durable: false, exclusive: false });
     console.log(" [x] Waiting for messages...");
@@ -133,6 +140,7 @@ function onConnect() {
 
 // stampa a console le gameRoom attive
 function printGameRooms() {
+    console.log(" [.] New game room configuration:");
     if (gameRooms.length <= 0) {
         console.log(" [.] empty");
     } else {
@@ -153,11 +161,19 @@ function addUserToGameRoom() {
     let gameRoomsCount = gameRooms.length;
 
     if (gameRoomsCount > 0) {
+        // dà la precedenza alle gameRoom con giocatori in attesa di avversari
+        for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
+            if (gameRooms[gRoomIndex][0].occupiedSlot && !gameRooms[gRoomIndex][1].occupiedSlot) {
+                gameRooms[gRoomIndex][1] = occupySlot(gRoomIndex, 1);
+                return { gameRoomId : gRoomIndex, playerId : 1 };
+            }
+        }
+
         // cerca il primo slot libero tra le gameRoom
         for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
             for (let slotIndex = 0; slotIndex < gameRooms[gRoomIndex].length; slotIndex++) {
                 // si è trovato uno slot libero: piazza l'utente lì
-                if(!gameRooms[gRoomIndex][slotIndex].occupiedSlot) {
+                if (!gameRooms[gRoomIndex][slotIndex].occupiedSlot) {
                     gameRooms[gRoomIndex][slotIndex] = occupySlot(gRoomIndex, slotIndex);
                     return { gameRoomId : gRoomIndex, playerId : slotIndex };
                 }
@@ -183,12 +199,12 @@ function removeUserFromGameRoom(gameRoomId, playerId) {
     // rimuove le eventuali gameRoom vuote
     for (let gRoomIndex = gameRooms.length - 1; gRoomIndex >= 0; gRoomIndex--) {
         let gameRoomToDelete = true;
-        for(let slotIndex = 0; slotIndex < gameRooms[gRoomIndex].length; slotIndex++) {
+        for (let slotIndex = 0; slotIndex < gameRooms[gRoomIndex].length; slotIndex++) {
             if(gameRooms[gRoomIndex][slotIndex])
                 gameRoomToDelete = false;
         }
 
-        if(gameRoomToDelete)
+        if (gameRoomToDelete)
             gameRooms.splice(gRoomIndex, 1);
     }
 }
@@ -211,15 +227,14 @@ function occupySlot(gameRoomId, playerId) {
             console.log(" [.] User removed from gameRooms array");
 
             let response = { msgType:    "quitGame",
-                        'gameRoomId': gameRoomId,
-                        'playerId':   playerId };
+                            'gameRoomId': gameRoomId,
+                            'playerId':   playerId };
 
             // invia una notifica alla gameRoom, rendendo partecipi i giocatori
             // che un giocatore è stato disconnesso
-            client.send(gameRoomsTopic + '.' + gameRoomId + '.' + playerId, {}, JSON.stringify(response));
+            client.send(gameRoomsTopic + '.' + gameRoomId, {}, JSON.stringify(response));
 
             console.log(" [.] Sent disconnection notification to gameRoom for user [%d][%d]", gameRoomId, playerId);
-            console.log(' [.] New gameRoom configuration:');
             printGameRooms();
             console.log(" [x] Waiting for messages...");
         }, 10000);
@@ -230,13 +245,17 @@ function occupySlot(gameRoomId, playerId) {
 
 // pulisce uno slot in precedenza occupato, rimuovendo il timer e togliendo il riferimento
 function clearSlot(gameRoomId, playerId) {
-    clearTimeout(gameRooms[gameRoomId][playerId].heartBeatTimer);
-    gameRooms[gameRoomId][playerId] = createFreeSlot();
+    if (gameRooms[gameRoomId][playerId] !== undefined) {
+        clearTimeout(gameRooms[gameRoomId][playerId].heartBeatTimer);
+        gameRooms[gameRoomId][playerId] = createFreeSlot();
+    }
 }
 
 
-// pulisce uno slot in precedenza occupato, rimuovendo il timer e togliendo il riferimento
+// aggiorna il timer heartbeat di un giocatore. invocato all'arrivo di un messaggio di heartbeat
 function updateHeartBeat(gameRoomId, playerId) {
-    clearTimeout(gameRooms[gameRoomId][playerId].heartBeatTimer);
-    gameRooms[gameRoomId][playerId] = occupySlot(gameRoomId, playerId);
+    if (gameRooms[gameRoomId][playerId] !== undefined) {
+        clearTimeout(gameRooms[gameRoomId][playerId].heartBeatTimer);
+        gameRooms[gameRoomId][playerId] = occupySlot(gameRoomId, playerId);
+    }
 }
