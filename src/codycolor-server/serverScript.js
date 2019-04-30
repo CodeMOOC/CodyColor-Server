@@ -13,20 +13,22 @@ printLog(false, '');
 let gameRooms = [];
 
 // conteggio dei match dall'ultimo riavvio
-let matchCount = 0;
+let totalMessages = 0;
 let startDate = (new Date()).toUTCString();
+let connectedPlayers = 0;
 
 // queue e topic utilizzati nelle comunicazioni con il broker
 const serverControlQueue  = '/queue/serverControl';
 const clientsControlTopic = '/topic/clientsControl';
 const gameRoomsTopic      = '/topic/gameRooms';
+const generalTopic        = "/topic/general";
 
 // istanza per il collegamento al broker tramite protocollo STOMP WebSocket
 // utilizza la libreria esterna npm 'stompjs'
 const HOST = process.env.HOST || 'rabbit';
 const PORT = process.env.PORT || 15674;
 const stompUrl = `ws://${HOST}:${PORT}/ws`;
-// const stompUrl = 'ws://127.0.0.1:15674/ws';
+//const stompUrl = 'ws://127.0.0.1:15674/ws';
 
 let Stomp = require('stompjs');
 printLog(false, `Initializing StompJs API at ${stompUrl}...`);
@@ -50,31 +52,39 @@ function onConnect() {
     client.subscribe(serverControlQueue, function(receivedMessage) {
         let messageBody = JSON.parse(receivedMessage.body);
 
-        if (messageBody.gameRoomId === -1 || messageBody.msgType === undefined) {
+        if (messageBody.msgType === undefined) {
             printLog(false, 'Received invalid message; ignored.');
             printLog(true, 'Waiting for messages...');
             return;
         }
 
         switch (messageBody.msgType) {
+            case 'connectedSignal':
+                printLog(false, 'A new client connected to the broker');
+                sendGeneralInfoMessage(messageBody.correlationId);
+                printLog(true, 'Waiting for messages...');
+                break;
+
             case 'gameRequest':
                 // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms
                 // e comunica al client playerId e gameRoom assegnatigli
                 printLog(false, 'Received game request from new client');
                 let playerData = addUserToGameRoom();
-                printLog(false, 'Client added to gameRoom array. User params: '
-                    + playerData.gameRoomId + '[' + playerData.playerId + ']');
-
+                printLog(false,
+                        'Client added to gameRoom array. User params: '
+                         + playerData.gameRoomId + '[' + playerData.playerId + ']');
                 printGameRooms();
 
                 let responseMessage = { msgType:   'gameResponse',
                                         gameRoomId: playerData.gameRoomId,
                                         playerId:   playerData.playerId };
-
                 client.send(clientsControlTopic + '.' + messageBody['correlationId'],
-                    {}, JSON.stringify(responseMessage));
-
+                            {}, JSON.stringify(responseMessage));
                 printLog(false, 'Sent gameResponse response to the client');
+
+                connectedPlayers++;
+                sendGeneralInfoMessage();
+
                 printLog(true, 'Waiting for messages...');
                 break;
 
@@ -83,11 +93,13 @@ function onConnect() {
                 printLog(false, 'Received quit game request from client ' +
                      + messageBody.gameRoomId + '[' + messageBody.playerId + ']');
 
-                if (gameRooms.length !== 0 && messageBody.gameRoomId <= gameRooms.length
-                    && gameRooms[messageBody.gameRoomId][messageBody.playerId] !== undefined) {
+                if (isPlayerDataValid(messageBody.gameRoomId, messageBody.playerId)) {
                     removeUserFromGameRoom(messageBody.gameRoomId, messageBody.playerId);
                     printLog(false, 'User removed from gameRooms array');
                     printGameRooms();
+                    connectedPlayers--;
+                    sendGeneralInfoMessage();
+
                 } else {
                     printLog(false, 'User not present yet');
                 }
@@ -97,17 +109,21 @@ function onConnect() {
             case 'heartbeat':
                 // ricevuto un heartbeat dal client. Se il server non riceve heartBeat da un client per più
                 // di 10 secondi, lo rimuove dal gioco e notifica la game room
-                if (gameRooms.length !== 0 && messageBody.gameRoomId <= gameRooms.length
-                    && gameRooms[messageBody.gameRoomId][messageBody.playerId] !== undefined) {
-                    //printLog(false, 'Received heartbeat from client ' + messageBody.gameRoomId + '[' + messageBody.playerId + ']');
+                if (isPlayerDataValid(messageBody.gameRoomId, messageBody.playerId)) {
                     updateHeartBeat(messageBody.gameRoomId, messageBody.playerId);
                 } else {
                     printLog(false, 'Received invalid heartbeat');
-                    let msgResponse = { msgType:    'quitGame',
-                                    'gameRoomId': messageBody.gameRoomId,
-                                    'playerId':   'server' };
-                    client.send(gameRoomsTopic + '.' + messageBody.gameRoomId, {}, JSON.stringify(msgResponse));
-                    printLog(false, 'Sent disconnection notification to gameRoom [' + messageBody.gameRoomId + '], for invalid heartbeat');
+                    if(messageBody.gameRoomId !== -1) {
+                        let msgResponse = {
+                            msgType: 'quitGame',
+                            'gameRoomId': messageBody.gameRoomId,
+                            'playerId': 'server'
+                        };
+                        client.send(gameRoomsTopic + '.' + messageBody.gameRoomId,
+                            {}, JSON.stringify(msgResponse));
+                        printLog(false, 'Sent disconnection notification to gameRoom ' +
+                            '[' + messageBody.gameRoomId + ']');
+                    }
                     printLog(true, 'Waiting for messages...');
                 }
                 break;
@@ -115,9 +131,6 @@ function onConnect() {
             case 'tilesRequest':
                 // un client ha richiesto una nuova disposizione di tiles per la propria gameRoom
                 printLog(false, 'Received tiles request from gameRoom ['+ messageBody.gameRoomId +']');
-
-                // genera tiles casuali, rappresentandole tramite una stringa, in cui ogni carattere
-                // rappresenta una casella
                 let tilesValue = '';
                 for (let i = 0; i < 25; i++) {
                     switch (Math.floor(Math.random() * 3)) {
@@ -139,12 +152,16 @@ function onConnect() {
                                       tiles:      tilesValue };
 
                 // invia una notifica alla gameRoom
-                client.send(gameRoomsTopic + '.' + messageBody.gameRoomId, {}, JSON.stringify(tilesResponse));
+                client.send(gameRoomsTopic + '.' + messageBody.gameRoomId,
+                            {}, JSON.stringify(tilesResponse));
 
-                printLog(false, 'Sent tiles response to gameRoom ['+ messageBody.gameRoomId+']: ' + tilesValue);
+                printLog(false, 'Sent tiles response to gameRoom ' +
+                                       '['+ messageBody.gameRoomId+']: ' + tilesValue);
 
-                matchCount++;
-                printLog(false, "Matches done from last server reboot (" + startDate + "): " + matchCount);
+                totalMessages++;
+                sendGeneralInfoMessage();
+
+                printLog(false, "Matches done from last server reboot (" + startDate + "): " + totalMessages);
                 printLog(true, 'Waiting for messages...');
                 break;
 
@@ -158,6 +175,33 @@ function onConnect() {
     }, { durable: false, exclusive: false });
     printLog(true, 'Waiting for messages...');
 }
+
+
+function isPlayerDataValid(gameRoomId, playerId) {
+    return gameRoomId !== -1
+        && playerId !== -1
+        && gameRooms.length !== 0
+        && gameRoomId <= gameRooms.length
+        && gameRooms[gameRoomId] !== undefined
+        && gameRooms[gameRoomId][playerId] !== undefined;
+}
+
+
+function sendGeneralInfoMessage(correlationId) {
+    let infoMessage = { msgType: 'generalInfo',
+                       'totalMatches': totalMessages,
+                       'connectedPlayers': connectedPlayers };
+
+    if (correlationId === undefined) {
+        client.send(generalTopic, {}, JSON.stringify(infoMessage));
+        printLog(false, 'Sent info update in general topic');
+    } else {
+        client.send(clientsControlTopic + '.' + correlationId,
+            {}, JSON.stringify(infoMessage));
+        printLog(false, 'Sent info update in client queue');
+    }
+}
+
 
 // stampa a console le gameRoom attive
 function printGameRooms() {
@@ -262,6 +306,10 @@ function occupySlot(gameRoomId, playerId) {
 
             printLog(false, 'Sent quit notification to gameRoom [' + gameRoomId + ']');
             printGameRooms();
+
+            connectedPlayers--;
+            sendGeneralInfoMessage();
+
             printLog(true, 'Waiting for messages...');
         }, 10000);
 
