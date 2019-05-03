@@ -16,8 +16,8 @@ let custGameRooms = [];
 // queue e topic utilizzati nelle comunicazioni con il broker
 const serverControlQueue  = '/queue/serverControl';
 const clientsControlTopic = '/topic/clientsControl';
-const randGameRoomsTopic      = '/topic/gameRooms';
-const custGameRoomsTopic      = '/topic/custGameRooms';
+const randGameRoomsTopic  = '/topic/gameRooms';
+const custGameRoomsTopic  = '/topic/custGameRooms';
 const generalTopic        = "/topic/general";
 const random = 'random';
 const custom = 'custom';
@@ -48,8 +48,8 @@ fs.readFile('/data/options.json', 'utf8', function readFileCallback(err, data){
 // utilizza la libreria esterna npm 'stompjs'
 const HOST = process.env.HOST || 'rabbit';
 const PORT = process.env.PORT || 15674;
-//const stompUrl = `ws://${HOST}:${PORT}/ws`;
-const stompUrl = 'ws://127.0.0.1:15674/ws';
+const stompUrl = `ws://${HOST}:${PORT}/ws`;
+//const stompUrl = 'ws://127.0.0.1:15674/ws';
 
 let Stomp = require('stompjs');
 printLog(false, `Initializing StompJs API at ${stompUrl}...`);
