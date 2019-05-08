@@ -128,7 +128,7 @@ rabbit.connect({ onConnectedSignal: function (message) {
 
     }, onTilesRequest: function (message) {
         // un client ha richiesto una nuova disposizione di tiles per la propria gameRoom
-        utilities.printLog(false, 'Received tiles request from ' + message.msgType +
+        utilities.printLog(false, 'Received tiles request from ' + message.gameType +
             ' game room ' + message.gameRoomId);
 
         let tilesValue = '';
@@ -177,7 +177,7 @@ randomGameRooms.setCallbacks(function () {
 customGameRooms.setCallbacks(function () {
     updateSessionOptions();
 }, function (gameRoomId, playerId) {
-    onHeartbeatExpired(gameRoomId, playerId, gameTypes.random)
+    onHeartbeatExpired(gameRoomId, playerId, gameTypes.custom)
 });
 
 
