@@ -130,7 +130,7 @@
 
     // rimuove un utente dalla propria gameRoom
     module.exports.removeUserFromGameRoom = function(gameRoomId, playerId) {
-        if (customGameRooms[gameRoomId][playerId] !== undefined) {
+        if (customGameRooms[gameRoomId] !== undefined && customGameRooms[gameRoomId][playerId] !== undefined) {
             // clear slot
             let code = customGameRooms[gameRoomId][playerId].code;
             clearTimeout(customGameRooms[gameRoomId][playerId].heartBeatTimer);
@@ -159,7 +159,7 @@
 
     // aggiorna il timer heartbeat di un giocatore. invocato all'arrivo di un messaggio di heartbeat
     module.exports.updateHeartBeat = function(gameRoomId, playerId) {
-        if (customGameRooms[gameRoomId][playerId] !== undefined) {
+        if (customGameRooms[gameRoomId]!== undefined && customGameRooms[gameRoomId][playerId] !== undefined) {
             clearTimeout(customGameRooms[gameRoomId][playerId].heartBeatTimer);
             customGameRooms[gameRoomId][playerId] = generateOccupiedSlot(gameRoomId, playerId,
                 customGameRooms[gameRoomId][playerId].code);

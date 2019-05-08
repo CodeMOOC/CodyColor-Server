@@ -76,8 +76,8 @@
         client.subscribe(serverControlQueue, function (receivedMessage) {
             let messageBody = JSON.parse(receivedMessage.body);
 
-            if (messageBody.msgType === undefined || (messageBody.gameRoomId !== undefined && messageBody.gameRoomId === -1)) {
-                safeCall('onInvalidMessage', messageBody);
+            if (messageBody.msgType === undefined || messageBody.gameRoomId === -1) {
+                // probabilmente, ping-pong dal broker; ignora
                 return;
             }
 
