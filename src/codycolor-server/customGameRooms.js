@@ -3,14 +3,10 @@
  * per l'aggiunta e la rimozione dei giocatori, oltre a metodi per recuperare informazioni sullo stato delle game room.
  */
 (function () {
-    // imports
-    let utilities = require("./utilities");
-
-    // array game room
-    let customGameRooms = [];
-
-    // callbacks utilizzati dal modulo
-    let callbacks = {};
+    let   utilities       = require("./utilities");
+    let   customGameRooms = [];
+    let   callbacks       = {};
+    const gameRoomStates  = utilities.gameRoomStates;
 
 
     // inizializza i callbacks utilizzati dal modulo
@@ -24,10 +20,9 @@
     module.exports.getConnectedPlayers = function() {
         let connectedPlayers = 0;
         for (let i = 0; i < customGameRooms.length; i++) {
-            if (customGameRooms[i][0].occupiedSlot)
-                connectedPlayers++;
-            if (customGameRooms[i][1].occupiedSlot)
-                connectedPlayers++;
+            for (let j = 0; j < customGameRooms[i].players.length; j++)
+                if (customGameRooms[i].players[j].occupiedSlot)
+                    connectedPlayers++;
         }
         return connectedPlayers;
     };
@@ -43,9 +38,9 @@
         } else {
             let gameRoomString = '';
             for (let i = 0; i < customGameRooms.length; i++) {
-                let firstSlot = (customGameRooms[i][0].occupiedSlot ? 'x' : 'o');
-                let secondSlot = (customGameRooms[i][1].occupiedSlot ? 'x' : 'o');
-                gameRoomString += i.toString() + '[' + firstSlot + ',' + secondSlot + '] ';
+                let firstSlot = (customGameRooms[i].players[0].occupiedSlot ? 'x' : 'o');
+                let secondSlot = (customGameRooms[i].players[1].occupiedSlot ? 'x' : 'o');
+                gameRoomString += i.toString() + '[' + firstSlot + '' + secondSlot + '] ';
                 if (i % 4 === 0 && i !== 0) {
                     utilities.printLog(false, gameRoomString);
                     gameRoomString = '';
@@ -64,89 +59,98 @@
             && customGameRooms.length !== 0
             && gameRoomId <= customGameRooms.length
             && customGameRooms[gameRoomId] !== undefined
-            && customGameRooms[gameRoomId][playerId] !== undefined;
+            && customGameRooms[gameRoomId].players[playerId] !== undefined;
     };
 
 
     // aggiunge un riferimento all'utente nel primo slot valido.
     // Ritorna un oggetto contenente gameRoom e playerId assegnati al richiedente.
     // L'eventuale callback passato viene eseguito non appena le gameRoom vengono aggiornate
-    module.exports.addUserToGameRoom = function(fromInvitation, invitationCode) {
-        let gameRoomsCount = customGameRooms.length;
+    module.exports.addUserToGameRoom = function(args) {
+        let responseValue = undefined;
 
-        if (fromInvitation === undefined || !fromInvitation) {
-            if (gameRoomsCount > 0) {
-                // cerca la prima gameRoom libera
-                for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
-                    if (!customGameRooms[gRoomIndex][0].occupiedSlot && !customGameRooms[gRoomIndex][1].occupiedSlot) {
-                        // occupa il primo slot
-                        customGameRooms[gRoomIndex][0] = generateOccupiedSlot(gRoomIndex, 0,
-                                                                              customGameRooms[gRoomIndex][0].code);
+        // caso nuova partita
+        if (args.fromInvitation === undefined || !args.fromInvitation)
+            responseValue = addOrganizerPlayer();
+        else
+            responseValue = addInvitedPlayer(args.invitationCode);
 
-                        callbacks.onGameRoomsUpdated();
-                        return { gameRoomId: gRoomIndex, playerId: 0, code: customGameRooms[gRoomIndex][0].code };
-                    }
-                }
+        callbacks.onGameRoomsUpdated();
+        return responseValue;
+    };
 
-                // non c'è uno slot libero: crea una nuova gameRoom e piazza l'utente nel primo slot
-                let uniqueCode = createUniqueCode();
-                customGameRooms.push([generateOccupiedSlot(gameRoomsCount, 0, uniqueCode),
-                    generateFreeSlot(uniqueCode)]);
 
-                callbacks.onGameRoomsUpdated();
-                return { gameRoomId: gameRoomsCount, playerId: 0, code: uniqueCode };
+    let addOrganizerPlayer = function() {
+        let newPlayerGameRoomId = undefined;
 
-            } else {
-                // deve essere creata la prima gameRoom: crea la gameRoom e piazza l'utente nel primo slot
-                let uniqueCode = createUniqueCode();
-                customGameRooms.push([generateOccupiedSlot(0, 0, uniqueCode),
-                    generateFreeSlot(uniqueCode)]);
-
-                callbacks.onGameRoomsUpdated();
-                return { gameRoomId: 0, playerId: 0, code: uniqueCode };
+        // cerca il primo slot libero tra le gameRoom
+        for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
+            if (customGameRooms[gRoomIndex].state === gameRoomStates.free) {
+                newPlayerGameRoomId = gRoomIndex;
             }
+        }
 
-        } else {
-            // si è stati invitati: cerca la gameRoom che ha proposto la partita
-            for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
-                if (customGameRooms[gRoomIndex][1].code.toString() === invitationCode.toString()
-                    && !customGameRooms[gRoomIndex][1].occupiedSlot
-                    &&  customGameRooms[gRoomIndex][0].occupiedSlot) {
-                    // occupa lo slot e restituisci i dati utente
-                    customGameRooms[gRoomIndex][1] = generateOccupiedSlot(gRoomIndex, 1,
-                                                                          invitationCode.toString());
+        // non c'è uno slot libero: crea una nuova game room
+        if (newPlayerGameRoomId === undefined) {
+            customGameRooms.push(generateFreeGameRoom());
+            customGameRooms[customGameRooms.length - 1].state = gameRoomStates.mmaking;
+            newPlayerGameRoomId = customGameRooms.length - 1;
+        }
 
-                    callbacks.onGameRoomsUpdated();
-                    return { gameRoomId: gRoomIndex, playerId: 1, code: invitationCode };
-                }
+        // inserisci il giocatore nella game room
+        customGameRooms[newPlayerGameRoomId].players[0] = generateOccupiedSlot(newPlayerGameRoomId, 0);
+
+        return { gameRoomId: newPlayerGameRoomId,
+                 playerId:   0,
+                 state:      gameRoomStates.mmaking,
+                 code:       customGameRooms[newPlayerGameRoomId].code };
+    };
+
+
+    let addInvitedPlayer = function(invitationCode) {
+        // si è stati invitati: cerca la gameRoom che ha proposto la partita
+        let newPlayerGameRoomId = undefined;
+        for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
+            if (customGameRooms[gRoomIndex].code.toString() === invitationCode.toString()
+                && customGameRooms[gRoomIndex].state === gameRoomStates.mmaking
+                && !customGameRooms[gRoomIndex].players[1].occupiedSlot) {
+                newPlayerGameRoomId = gRoomIndex;
             }
+        }
 
-            // il codice non è più valido: ritorna un oggetto nullo
-            callbacks.onGameRoomsUpdated();
-            return undefined;
+        if (newPlayerGameRoomId !== undefined) {
+            // gameRoom trovata: aggiungi giocatore
+            customGameRooms[newPlayerGameRoomId].players[1] = generateOccupiedSlot(newPlayerGameRoomId, 1);
+            return { gameRoomId: newPlayerGameRoomId,
+                     playerId:   1,
+                     code:       customGameRooms[newPlayerGameRoomId].code,
+                     state:      gameRoomStates.mmaking };
         }
     };
 
 
     // rimuove un utente dalla propria gameRoom
     module.exports.removeUserFromGameRoom = function(gameRoomId, playerId) {
-        if (customGameRooms[gameRoomId] !== undefined && customGameRooms[gameRoomId][playerId] !== undefined) {
-            // clear slot
-            let code = customGameRooms[gameRoomId][playerId].code;
-            clearTimeout(customGameRooms[gameRoomId][playerId].heartBeatTimer);
-            customGameRooms[gameRoomId][playerId] = generateFreeSlot(code);
+        if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
+            // pulisci lo slot giocatore
+            clearTimeout(customGameRooms[gameRoomId].players[playerId].heartBeatTimer);
+            customGameRooms[gameRoomId].players[playerId] = generateFreeSlot();
 
-            // set new code
-            if (!customGameRooms[gameRoomId][0].occupiedSlot
-                && !customGameRooms[gameRoomId][1].occupiedSlot) {
-                let newCode = createUniqueCode();
-                customGameRooms[gameRoomId][0].code = newCode;
-                customGameRooms[gameRoomId][1].code = newCode;
+            // pulisci la game room se necessario
+            if (customGameRooms[gameRoomId].state === gameRoomStates.playing) {
+                let noPlayers = true;
+                for (let playerIndex = 0; playerIndex < customGameRooms[gameRoomId].players.length; playerIndex++) {
+                    if (customGameRooms[gameRoomId].players[playerIndex].occupiedSlot)
+                        noPlayers = false;
+                }
+
+                if (noPlayers)
+                    customGameRooms[gameRoomId] = generateFreeGameRoom();
             }
 
-            // rimuove le eventuali gameRoom vuote
+            // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
             for (let gRoomIndex = customGameRooms.length - 1; gRoomIndex >= 0; gRoomIndex--) {
-                if (!customGameRooms[gRoomIndex][0].occupiedSlot && !customGameRooms[gRoomIndex][1].occupiedSlot)
+                if (customGameRooms[gRoomIndex].state === gameRoomStates.free)
                     customGameRooms.splice(gRoomIndex, 1);
                 else
                     break;
@@ -159,30 +163,44 @@
 
     // aggiorna il timer heartbeat di un giocatore. invocato all'arrivo di un messaggio di heartbeat
     module.exports.updateHeartBeat = function(gameRoomId, playerId) {
-        if (customGameRooms[gameRoomId]!== undefined && customGameRooms[gameRoomId][playerId] !== undefined) {
-            clearTimeout(customGameRooms[gameRoomId][playerId].heartBeatTimer);
-            customGameRooms[gameRoomId][playerId] = generateOccupiedSlot(gameRoomId, playerId,
-                customGameRooms[gameRoomId][playerId].code);
+        if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
+            clearTimeout(customGameRooms[gameRoomId].players[playerId].heartBeatTimer);
+            customGameRooms[gameRoomId].players[playerId].heartBeatTimer = generateHeartbeatTimer(gameRoomId, playerId);
         }
     };
 
 
+    module.exports.startMatch = function(gameRoomId) {
+        customGameRooms[gameRoomId].state = gameRoomStates.playing;
+    };
+
+
+    let generateFreeGameRoom = function() {
+        return { players: [generateFreeSlot(), generateFreeSlot()], state: gameRoomStates.free, code: generateUniqueCode() };
+    };
+
+
     // crea uno slot libero da porre su una gameRoom
-    let generateFreeSlot = function(codeValue) {
-        return { occupiedSlot: false, heartBeatTimer: null, code: codeValue.toString() };
+    let generateFreeSlot = function() {
+        return { occupiedSlot: false, heartBeatTimer: undefined };
     };
 
 
     // setta uno slot come occupato, aggiornando la variabile di occupazione e settando un
-    // timer per gestire l'heartbeat
-    let generateOccupiedSlot = function(gameRoomId, playerId, gRoomCode) {
-        let timer = setTimeout(function() {callbacks.onHeartbeatExpired(gameRoomId, playerId)},
-            10000);
-        return { occupiedSlot: true, heartBeatTimer: timer, code: gRoomCode };
+    // nuovo timer per gestire l'heartbeat
+    let generateOccupiedSlot = function(gameRoomId, playerId) {
+        return { occupiedSlot: true, heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId) };
     };
 
 
-    let createUniqueCode = function() {
+    let generateHeartbeatTimer = function(gameRoomId, playerId) {
+        return setTimeout(function() {
+            callbacks.onHeartbeatExpired(gameRoomId, playerId)
+        }, 10000);
+    };
+
+
+    let generateUniqueCode = function() {
         let newCode = '0000';
         let unique = true;
         do {

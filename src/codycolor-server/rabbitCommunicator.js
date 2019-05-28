@@ -28,9 +28,10 @@
     const password    = 'guest';
     const vHost       = '/';
     let client;
+    let connected = false;
 
     // costante di controllo
-    const gameTypes = { custom: 'custom', random: 'random' };
+    const gameTypes = utilities.gameTypes;
 
     // memorizza le funzioni invocate all'arrivo di nuovi messaggi
     let callbacks = {};
@@ -44,6 +45,16 @@
         utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
         client = stomp.overWS(stompUrl);
         client.connect(username, password, onConnect, onError, vHost);
+
+        // thread di controllo e retry
+        setInterval(function () {
+            if (!connected) {
+                utilities.printLog(true, "Connection to the broker not available. Retrying...");
+                utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
+                client = stomp.overWS(stompUrl);
+                client.connect(username, password, onConnect, onError, vHost);
+            }
+        }, 10000);
     };
 
     // invia un messaggio alla queue di controllo diretta del client
@@ -72,6 +83,7 @@
     // nella queue riservata al server. Invoca il callback corrispondente per ogni tipo di messaggio
     let onConnect = function () {
         utilities.printLog(true, 'Connection to the broker ready');
+        connected = true;
 
         client.subscribe(serverControlQueue, function (receivedMessage) {
             let messageBody = JSON.parse(receivedMessage.body);
@@ -113,18 +125,8 @@
 
     // in caso di errore, il programma ritenta la connessione dopo 10 secondi
     let onError = function () {
-        utilities.printLog(true, 'Error connecting to the broker, or processing messages. Retry in 10 seconds...');
-        let retryCounter = 0;
-        let retryInterval = setInterval(function () {
-            retryCounter += 1;
-
-            if (retryCounter < 10) {
-                utilities.printLog(false, ".")
-            } else {
-                clearInterval(retryInterval);
-                module.exports.connect();
-            }
-        }, 1000)
+        utilities.printLog(true, 'Error connecting to the broker.');
+        connected = false;
     };
 
 
