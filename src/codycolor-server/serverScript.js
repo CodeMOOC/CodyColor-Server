@@ -14,8 +14,22 @@ let randomGameRooms = require('./randomGameRooms');
 let customGameRooms = require('./customGameRooms');
 let agaGameRooms = require('./agaGameRooms');
 
-// costante di controllo
 const gameTypes = utilities.gameTypes;
+const messageTypes = {
+    gameRequest:      "gameRequest",
+    gameResponse:     "gameResponse",
+    heartbeat:        "heartbeat",
+    tilesRequest:     "tilesRequest",
+    tilesResponse:    "tilesResponse",
+    connectedSignal:  "connectedSignal",
+    generalInfo:      "generalInfo",
+    here:             "here",
+    ready:            "ready",
+    playerPositioned: "playerPositioned",
+    skip:             "skip",
+    chat:             "chat",
+    quitGame:         "quitGame"
+};
 
 // inizializzazione
 utilities.printProgramHeader();
@@ -40,7 +54,7 @@ rabbit.connect({
         let responseMessage;
         if (playerData !== undefined) {
             responseMessage = {
-                msgType: 'gameResponse',
+                msgType: messageTypes.gameResponse,
                 gameRoomId: playerData.gameRoomId,
                 playerId: playerData.playerId,
                 code: playerData.code,
@@ -58,7 +72,7 @@ rabbit.connect({
             // failed to add
             utilities.printLog(false, 'The request is not valid anymore.');
             responseMessage = {
-                msgType: 'gameResponse',
+                msgType: messageTypes.gameResponse,
                 code: '0000',
                 gameType: message.gameType
             };
@@ -92,7 +106,7 @@ rabbit.connect({
             // heartbeat invalido: forza la disconnessione di tutti gli utenti della game room
             utilities.printLog(false, 'Received invalid heartbeat');
             let responseMessage = {
-                msgType: 'quitGame',
+                msgType: messageTypes.quitGame,
                 gameRoomId: message.gameRoomId,
                 playerId: 'server',
                 gameType: message.gameType
@@ -123,7 +137,7 @@ rabbit.connect({
         }
 
         let responseMessage = {
-            msgType: 'tilesResponse',
+            msgType: messageTypes.tilesResponse,
             gameRoomId: message.gameRoomId,
             gameType: message.gameType,
             playerId: 'server',
@@ -176,7 +190,7 @@ let onHeartbeatExpired = function (gameRoomId, playerId, gameType) {
     utilities.printLog(false, 'User removed from ' + gameType + ' gameRooms array');
 
     let responseMessage = {
-        msgType: 'quitGame',
+        msgType: messageTypes.quitGame,
         'gameRoomId': gameRoomId,
         'playerId': playerId,
         'gameType': gameType
@@ -218,11 +232,11 @@ let updateSessionOptions = function () {
 
 let sendGeneralInfoMessage = function (correlationId) {
     let message = {
-        'msgType': 'generalInfo',
+        'msgType': messageTypes.generalInfo,
         'totalMatches': options.getTotalMatches(),
         'connectedPlayers': options.getConnectedPlayers(),
         'randomWaitingPlayers': options.getRandomWaitingPlayers(),
-        'requiredClientVersion': '1.0.7'
+        'requiredClientVersion':utilities.requiredClientVersion
     };
 
     if (correlationId === undefined) {

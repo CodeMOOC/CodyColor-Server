@@ -17,9 +17,7 @@
         module.exports.printLog(false, '');
     };
 
-
     module.exports.gameTypes      = { custom: 'custom', random: 'random', aga: 'aga' };
-
-
     module.exports.gameRoomStates = { mmaking: 'mmaking', playing: 'playing', free: 'free' };
+    module.exports.requiredClientVersion  = '1.0.8';
 }());
