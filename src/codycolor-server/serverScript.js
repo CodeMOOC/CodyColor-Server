@@ -34,8 +34,8 @@ rabbit.connect({
         utilities.printLog(false, 'Received ' + message.gameType + ' gameRequest from client');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        let playerData = gameRoomHandler.addUserToGameRoom({ fromInvitation: message.code === '0000',
-                                                             invitationCode: undefined,
+        let playerData = gameRoomHandler.addUserToGameRoom({ fromInvitation: message.code !== '0000',
+                                                             invitationCode: message.code,
                                                              dateValue: message.dateValue });
         let responseMessage;
         if (playerData !== undefined) {
@@ -44,7 +44,7 @@ rabbit.connect({
                 gameRoomId: playerData.gameRoomId,
                 playerId: playerData.playerId,
                 code: playerData.code,
-                gameType: gameTypes.aga,
+                gameType: message.gameType,
                 date: playerData.date,
                 state: playerData.state
             };
@@ -92,7 +92,7 @@ rabbit.connect({
             // heartbeat invalido: forza la disconnessione di tutti gli utenti della game room
             utilities.printLog(false, 'Received invalid heartbeat');
             let responseMessage = {
-                msgType: 'quitNotification',
+                msgType: 'quitGame',
                 gameRoomId: message.gameRoomId,
                 playerId: 'server',
                 gameType: message.gameType
@@ -176,7 +176,7 @@ let onHeartbeatExpired = function (gameRoomId, playerId, gameType) {
     utilities.printLog(false, 'User removed from ' + gameType + ' gameRooms array');
 
     let responseMessage = {
-        msgType: 'quitNotification',
+        msgType: 'quitGame',
         'gameRoomId': gameRoomId,
         'playerId': playerId,
         'gameType': gameType
@@ -221,7 +221,8 @@ let sendGeneralInfoMessage = function (correlationId) {
         'msgType': 'generalInfo',
         'totalMatches': options.getTotalMatches(),
         'connectedPlayers': options.getConnectedPlayers(),
-        'randomWaitingPlayers': options.getRandomWaitingPlayers()
+        'randomWaitingPlayers': options.getRandomWaitingPlayers(),
+        'requiredClientVersion': '1.0.7'
     };
 
     if (correlationId === undefined) {

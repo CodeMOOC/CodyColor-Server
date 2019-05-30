@@ -21,5 +21,5 @@
     module.exports.gameTypes      = { custom: 'custom', random: 'random', aga: 'aga' };
 
 
-    module.exports.gameRoomStates = { mmaking: 0, playing: 1, free: 2 };
+    module.exports.gameRoomStates = { mmaking: 'mmaking', playing: 'playing', free: 'free' };
 }());
