@@ -40,8 +40,11 @@ rebuild:
 
 .PHONY: mysql
 mysql:
-	${DC} build database-client
 	${DC_RUN} database-client sh
+
+.PHONY: mysqlclient
+mysqlclient:
+	${DC_RUN} database-client /app/client.sh
 
 .PHONY: dump
 dump:
