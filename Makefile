@@ -38,6 +38,16 @@ rebuild:
 	${DC} build server
 	${DC} up -d
 
+.PHONY: mysql
+mysql:
+	${DC} build database-client
+	${DC_RUN} database-client sh
+
+.PHONY: dump
+dump:
+	${DC_RUN} database-client mysqldump -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} > dump.sql
+	@echo 'Database exported to dump.sql.'
+
 .PHONY: stop
 stop:
 	${DC} stop
