@@ -14,7 +14,8 @@
         "stompjs": "~2.3.3",
         "typedarray-to-buffer": "^3.1.5",
         "websocket": "^1.0.28",
-        "yaeti": "~1.0.2"
+        "yaeti": "~1.0.2",
+        "mysql": "~2.17.1"
     },
     "engines": {
         "node": "4.0.0"
