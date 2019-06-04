@@ -25,6 +25,31 @@ connection.query("INSERT INTO `Sample` (`ID`, `Value`) VALUES(DEFAULT, 'Prova')"
 });
 connection.end();
 
+const Influx = require("influx");
+const influxdb = new Influx.InfluxDB({
+    host: 'influx:8086',
+    database: 'codycolor',
+    username: process.env.INFLUXDB_USER,
+    password: process.env.INFLUXDB_USER_PASSWORD,
+   
+    schema: [
+        {
+            measurement: "users",
+            fields: { count: Influx.FieldType.INTEGER },
+            tags: []
+        }
+    ]
+});
+
+influxdb.writePoints([
+    {
+        measurement: "users",
+        fields: { count: Math.ceil(Math.random() * 1000) }
+    }
+]).catch(err => {
+    console.error("Error writing data to Influx!");
+});
+
 return;
 
 // imports

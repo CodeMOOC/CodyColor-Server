@@ -5,3 +5,9 @@ services:
   rabbit:
     labels:
     - "traefik.frontend.rule=Host:codycolor-beta.codemooc.net;PathPrefixStrip:/api"
+
+  grafana:
+    environment:
+    - GF_SERVER_ROOT_URL=https://codycolor-beta.codemooc.net/grafana
+    labels:
+    - "traefik.frontend.rule=Host:codycolor-beta.codemooc.net;PathPrefixStrip:/grafana"

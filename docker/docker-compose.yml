@@ -5,6 +5,8 @@ volumes:
     external: true
   codycolor-database:
     external: true
+  codycolor-influx:
+    external: true
 
 networks:
   web:
@@ -35,6 +37,7 @@ services:
     depends_on:
     - rabbit
     - database
+    - influx
     volumes:
     - codycolor-data:/data:rw
 
@@ -53,3 +56,31 @@ services:
     networks:
     - backend
     env_file: ../config.env
+
+  influx:
+    image: influxdb:1.5.4-alpine
+    env_file: ../config.env
+    networks:
+    - backend
+    volumes:
+    - codycolor-influx:/var/lib/influxdb:rw
+    environment:
+    - INFLUXDB_DB=codycolor
+
+  grafana:
+    image: grafana/grafana:6.2.1
+    env_file: ../config.env
+    networks:
+    - web
+    - backend
+    expose:
+    - "3000"
+    environment:
+    - GF_SERVER_ROOT_URL=https://codycolor-beta.codemooc.net/grafana
+    labels:
+    - "traefik.enable=true"
+    - "traefik.docker.network=web"
+    - "traefik.protocol=http"
+    - "traefik.port=3000"
+    - "traefik.frontend.entryPoints=http,https"
+    - "traefik.frontend.redirect.entryPoint=https"

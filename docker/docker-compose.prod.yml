@@ -12,3 +12,12 @@ services:
 
   database:
     restart: unless-stopped
+
+  influx:
+    restart: unless-stopped
+
+  grafana:
+    environment:
+    - GF_SERVER_ROOT_URL=https://botify.it/grafana
+    labels:
+    - "traefik.frontend.rule=Host:botify.it;PathPrefixStrip:/grafana"
