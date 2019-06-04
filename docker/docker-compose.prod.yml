@@ -1,0 +1,12 @@
+# Production-specific config
+version: '3'
+
+services:
+  rabbit:
+    restart: unless-stopped
+
+  server:
+    restart: unless-stopped
+
+  database:
+    restart: unless-stopped

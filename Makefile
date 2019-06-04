@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 ENV ?= dev
-DC := docker-compose -f docker/docker-compose.yml --project-name codycolor
+DC := docker-compose -f docker/docker-compose.yml -f docker/docker-compose.${ENV}.yml --project-name codycolor
 DC_RUN := ${DC} run --rm
 
 include config.env
