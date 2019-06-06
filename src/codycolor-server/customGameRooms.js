@@ -3,16 +3,16 @@
  * per l'aggiunta e la rimozione dei giocatori, oltre a metodi per recuperare informazioni sullo stato delle game room.
  */
 (function () {
-    let   utilities       = require("./utilities");
-    let   customGameRooms = [];
-    let   callbacks       = {};
-    const gameRoomStates  = utilities.gameRoomStates;
+    let utilities = require("./utilities");
+    let customGameRooms = [];
+    let callbacks = {};
+    const gameRoomStates = utilities.gameRoomStates;
 
 
     // inizializza i callbacks utilizzati dal modulo
     module.exports.setCallbacks = function(onGameRoomsUpdated, onHeartbeatExpired) {
-      callbacks.onGameRoomsUpdated = onGameRoomsUpdated;
-      callbacks.onHeartbeatExpired = onHeartbeatExpired;
+        callbacks.onGameRoomsUpdated = onGameRoomsUpdated;
+        callbacks.onHeartbeatExpired = onHeartbeatExpired;
     };
 
 
@@ -69,7 +69,6 @@
     module.exports.addUserToGameRoom = function(args) {
         let responseValue = undefined;
 
-        // caso nuova partita
         if (args.fromInvitation === undefined || !args.fromInvitation)
             responseValue = addOrganizerPlayer();
         else
@@ -100,10 +99,12 @@
         // inserisci il giocatore nella game room
         customGameRooms[newPlayerGameRoomId].players[0] = generateOccupiedSlot(newPlayerGameRoomId, 0);
 
-        return { gameRoomId: newPlayerGameRoomId,
-                 playerId:   0,
-                 state:      gameRoomStates.mmaking,
-                 code:       customGameRooms[newPlayerGameRoomId].code };
+        return {
+            gameRoomId: newPlayerGameRoomId,
+            playerId:   0,
+            state:      gameRoomStates.mmaking,
+            code:       customGameRooms[newPlayerGameRoomId].code
+        };
     };
 
 
@@ -121,10 +122,12 @@
         if (newPlayerGameRoomId !== undefined) {
             // gameRoom trovata: aggiungi giocatore
             customGameRooms[newPlayerGameRoomId].players[1] = generateOccupiedSlot(newPlayerGameRoomId, 1);
-            return { gameRoomId: newPlayerGameRoomId,
-                     playerId:   1,
-                     code:       customGameRooms[newPlayerGameRoomId].code,
-                     state:      gameRoomStates.mmaking };
+            return {
+                gameRoomId: newPlayerGameRoomId,
+                playerId:   1,
+                code:       customGameRooms[newPlayerGameRoomId].code,
+                state:      gameRoomStates.mmaking
+            };
         }
     };
 
@@ -165,7 +168,8 @@
     module.exports.updateHeartBeat = function(gameRoomId, playerId) {
         if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
             clearTimeout(customGameRooms[gameRoomId].players[playerId].heartBeatTimer);
-            customGameRooms[gameRoomId].players[playerId].heartBeatTimer = generateHeartbeatTimer(gameRoomId, playerId);
+            customGameRooms[gameRoomId].players[playerId].heartBeatTimer
+                = generateHeartbeatTimer(gameRoomId, playerId);
         }
     };
 
@@ -176,20 +180,27 @@
 
 
     let generateFreeGameRoom = function() {
-        return { players: [generateFreeSlot(), generateFreeSlot()], state: gameRoomStates.free, code: generateUniqueCode() };
+        return {
+            players: [ generateFreeSlot(), generateFreeSlot() ],
+            state:   gameRoomStates.free,
+            code:    generateUniqueCode()
+        };
     };
 
 
-    // crea uno slot libero da porre su una gameRoom
     let generateFreeSlot = function() {
-        return { occupiedSlot: false, heartBeatTimer: undefined };
+        return {
+            occupiedSlot: false,
+            heartBeatTimer: undefined
+        };
     };
 
 
-    // setta uno slot come occupato, aggiornando la variabile di occupazione e settando un
-    // nuovo timer per gestire l'heartbeat
     let generateOccupiedSlot = function(gameRoomId, playerId) {
-        return { occupiedSlot: true, heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId) };
+        return {
+            occupiedSlot: true,
+            heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId)
+        };
     };
 
 

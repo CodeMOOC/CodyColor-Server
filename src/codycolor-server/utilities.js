@@ -17,7 +17,35 @@
         module.exports.printLog(false, '');
     };
 
-    module.exports.gameTypes      = { custom: 'custom', random: 'random', aga: 'aga' };
-    module.exports.gameRoomStates = { mmaking: 'mmaking', playing: 'playing', free: 'free' };
-    module.exports.requiredClientVersion  = '1.0.8';
+
+    module.exports.requiredClientVersion  = '1.0.9';
+
+
+    module.exports.gameTypes = {
+        custom: 'custom',
+        random: 'random',
+        royale: 'royale'
+    };
+
+    module.exports.gameRoomStates = {
+        mmaking: 'mmaking',
+        playing: 'playing',
+        free: 'free'
+    };
+
+    module.exports.messageTypes = {
+        gameRequest:      "gameRequest",
+        gameResponse:     "gameResponse",
+        heartbeat:        "heartbeat",
+        tilesRequest:     "tilesRequest",
+        tilesResponse:    "tilesResponse",
+        connectedSignal:  "connectedSignal",
+        generalInfo:      "generalInfo",
+        here:             "here",
+        ready:            "ready",
+        playerPositioned: "playerPositioned",
+        skip:             "skip",
+        chat:             "chat",
+        quitGame:         "quitGame"
+    };
 }());

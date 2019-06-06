@@ -12,24 +12,10 @@ let options = require('./options');
 let rabbit = require('./rabbitCommunicator');
 let randomGameRooms = require('./randomGameRooms');
 let customGameRooms = require('./customGameRooms');
-let agaGameRooms = require('./agaGameRooms');
+let royaleGameRooms = require('./royaleGameRooms');
 
 const gameTypes = utilities.gameTypes;
-const messageTypes = {
-    gameRequest:      "gameRequest",
-    gameResponse:     "gameResponse",
-    heartbeat:        "heartbeat",
-    tilesRequest:     "tilesRequest",
-    tilesResponse:    "tilesResponse",
-    connectedSignal:  "connectedSignal",
-    generalInfo:      "generalInfo",
-    here:             "here",
-    ready:            "ready",
-    playerPositioned: "playerPositioned",
-    skip:             "skip",
-    chat:             "chat",
-    quitGame:         "quitGame"
-};
+const messageTypes = utilities.messageTypes;
 
 // inizializzazione
 utilities.printProgramHeader();
@@ -48,9 +34,13 @@ rabbit.connect({
         utilities.printLog(false, 'Received ' + message.gameType + ' gameRequest from client');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        let playerData = gameRoomHandler.addUserToGameRoom({ fromInvitation: message.code !== '0000',
-                                                             invitationCode: message.code,
-                                                             dateValue: message.dateValue });
+        let playerData = gameRoomHandler.addUserToGameRoom({
+            fromInvitation: message.code !== '0000',
+            invitationCode: message.code,
+            dateValue: message.date,
+            timerSetting: message.timerSetting,
+            gameName: message.gameName
+        });
         let responseMessage;
         if (playerData !== undefined) {
             responseMessage = {
@@ -59,6 +49,8 @@ rabbit.connect({
                 playerId: playerData.playerId,
                 code: playerData.code,
                 gameType: message.gameType,
+                gameName: playerData.gameName,
+                timerSetting: playerData.timerSetting,
                 date: playerData.date,
                 state: playerData.state
             };
@@ -77,7 +69,7 @@ rabbit.connect({
                 gameType: message.gameType
             };
         }
-        rabbit.sendToClientControlQueue(message.correlationId, responseMessage);
+        rabbit.sendInClientControlQueue(message.correlationId, responseMessage);
         utilities.printLog(true, 'Waiting for messages...');
 
     }, onQuitGame: function (message) {
@@ -85,14 +77,25 @@ rabbit.connect({
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
+        let forceRemove = false;
         if (gameRoomHandler.isPlayerDataValid(message.gameRoomId, message.playerId)) {
-            gameRoomHandler.removeUserFromGameRoom(message.gameRoomId, message.playerId);
+            forceRemove = gameRoomHandler.removeUserFromGameRoom(message.gameRoomId, message.playerId);
             utilities.printLog(false, 'User removed from ' + message.gameType + ' game rooms array');
             gameRoomHandler.printGameRooms();
 
         } else {
             utilities.printLog(false, 'The user is not present in the game room [' + message.playerId + ']');
         }
+
+        if (forceRemove) {
+            rabbit.sendInGameRoomTopic({
+                msgType: messageTypes.quitGame,
+                gameRoomId: message.gameRoomId,
+                playerId: 'server',
+                gameType: message.gameType
+            });
+        }
+
         utilities.printLog(true, 'Waiting for messages...');
 
     }, onHeartbeat: function (message) {
@@ -112,7 +115,7 @@ rabbit.connect({
                 gameType: message.gameType
             };
 
-            rabbit.sendToGameRoomTopic(responseMessage);
+            rabbit.sendInGameRoomTopic(responseMessage);
             utilities.printLog(true, 'Waiting for messages...');
         }
 
@@ -121,30 +124,15 @@ rabbit.connect({
         utilities.printLog(false, 'Received tiles request from ' + message.gameType +
             ' game room ' + message.gameRoomId);
 
-        let tilesValue = '';
-        for (let i = 0; i < 25; i++) {
-            switch (Math.floor(Math.random() * 3)) {
-                case 0:
-                    tilesValue += 'R';
-                    break;
-                case 1:
-                    tilesValue += 'Y';
-                    break;
-                case 2:
-                    tilesValue += 'G';
-                    break;
-            }
-        }
-
         let responseMessage = {
             msgType: messageTypes.tilesResponse,
             gameRoomId: message.gameRoomId,
             gameType: message.gameType,
             playerId: 'server',
-            tiles: tilesValue
+            tiles: generateTiles()
         };
 
-        rabbit.sendToGameRoomTopic(responseMessage);
+        rabbit.sendInGameRoomTopic(responseMessage);
         options.addTotalMatches();
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
@@ -174,10 +162,27 @@ customGameRooms.setCallbacks(function () {
 });
 
 
-agaGameRooms.setCallbacks(function () {
+royaleGameRooms.setCallbacks(function () {
     updateSessionOptions();
+
 }, function (gameRoomId, playerId) {
-    onHeartbeatExpired(gameRoomId, playerId, gameTypes.aga)
+    onHeartbeatExpired(gameRoomId, playerId, gameTypes.royale);
+
+}, function (gameRoomId) {
+    utilities.printLog(false, "Start timer of royale game room expired");
+
+    rabbit.sendInGameRoomTopic({
+        msgType: messageTypes.tilesResponse,
+        gameRoomId: gameRoomId,
+        gameType: gameTypes.royale,
+        playerId: 'server',
+        tiles: generateTiles()
+    });
+    royaleGameRooms.startMatch(gameRoomId);
+
+    options.addTotalMatches();
+    utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
+    utilities.printLog(true, 'Waiting for messages...');
 });
 
 
@@ -186,20 +191,48 @@ let onHeartbeatExpired = function (gameRoomId, playerId, gameType) {
         + gameType + ' game rooms expired');
 
     let gameRoomHandler = getGameRoomHandler(gameType);
-    gameRoomHandler.removeUserFromGameRoom(gameRoomId, playerId);
+    let forceRemove = gameRoomHandler.removeUserFromGameRoom(gameRoomId, playerId);
     utilities.printLog(false, 'User removed from ' + gameType + ' gameRooms array');
 
-    let responseMessage = {
-        msgType: messageTypes.quitGame,
-        'gameRoomId': gameRoomId,
-        'playerId': playerId,
-        'gameType': gameType
-    };
     // invia una notifica alla gameRoom, rendendo partecipi i giocatori
     // che un giocatore è stato disconnesso
-    rabbit.sendToGameRoomTopic(responseMessage);
+    if (forceRemove) {
+        rabbit.sendInGameRoomTopic({
+            msgType: messageTypes.quitGame,
+            gameRoomId: gameRoomId,
+            playerId: 'server',
+            gameType:gameType
+        });
+    } else {
+        rabbit.sendInGameRoomTopic({
+            msgType: messageTypes.quitGame,
+            'gameRoomId': gameRoomId,
+            'playerId': playerId,
+            'gameType': gameType
+        });
+    }
+
     gameRoomHandler.printGameRooms();
     utilities.printLog(true, 'Waiting for messages...');
+};
+
+
+let generateTiles = function() {
+    let tiles = '';
+    for (let i = 0; i < 25; i++) {
+        switch (Math.floor(Math.random() * 3)) {
+            case 0:
+                tiles += 'R';
+                break;
+            case 1:
+                tiles += 'Y';
+                break;
+            case 2:
+                tiles += 'G';
+                break;
+        }
+    }
+    return tiles;
 };
 
 
@@ -208,8 +241,8 @@ let getGameRoomHandler = function(gameType) {
         case gameTypes.custom: {
             return customGameRooms;
         }
-        case gameTypes.aga: {
-            return agaGameRooms;
+        case gameTypes.royale: {
+            return royaleGameRooms;
         }
         default: {
             return randomGameRooms;
@@ -240,8 +273,8 @@ let sendGeneralInfoMessage = function (correlationId) {
     };
 
     if (correlationId === undefined) {
-        rabbit.sendToGeneralTopic(message);
+        rabbit.sendInGeneralTopic(message);
     } else {
-        rabbit.sendToClientControlQueue(correlationId, message);
+        rabbit.sendInClientControlQueue(correlationId, message);
     }
 };

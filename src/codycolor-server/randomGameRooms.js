@@ -3,10 +3,10 @@
  * per l'aggiunta e la rimozione dei giocatori, oltre a metodi per recuperare informazioni sullo stato delle game room.
  */
 (function () {
-    let   utilities       = require("./utilities");
-    let   randomGameRooms = [];
-    let   callbacks       = {};
-    const gameRoomStates  = utilities.gameRoomStates;
+    let utilities = require("./utilities");
+    let randomGameRooms = [];
+    let callbacks = {};
+    const gameRoomStates = utilities.gameRoomStates;
 
 
     // inizializza i callbacks utilizzati dal modulo
@@ -38,6 +38,7 @@
         return waitingPlayers;
     };
 
+
     // stampa a console le gameRoom attive ad accoppiamento personalizzato
     module.exports.printGameRooms = function () {
         utilities.printLog(false, 'New random game room configuration:');
@@ -61,15 +62,6 @@
         }
     };
 
-    // verifica se i dati del giocatore sono validi
-   let isPlayerDataValid = function (gameRoomId, playerId) {
-        return gameRoomId !== -1
-            && playerId !== -1
-            && randomGameRooms.length !== 0
-            && gameRoomId <= randomGameRooms.length
-            && randomGameRooms[gameRoomId] !== undefined
-            && randomGameRooms[gameRoomId].players[playerId] !== undefined;
-    };
 
     // verifica se i dati del giocatore sono validi
     module.exports.isPlayerDataValid = function (gameRoomId, playerId) {
@@ -92,7 +84,10 @@
         for (let gRoomIndex = 0; gRoomIndex < randomGameRooms.length; gRoomIndex++) {
             if (randomGameRooms[gRoomIndex].players[0].occupiedSlot &&
                !randomGameRooms[gRoomIndex].players[1].occupiedSlot) {
-                newPlayerData = { gameRoomId: gRoomIndex, playerId: 1 };
+                newPlayerData = {
+                    gameRoomId: gRoomIndex,
+                    playerId: 1
+                };
             }
         }
 
@@ -102,7 +97,10 @@
                 for (let playerIndex = 0; playerIndex < 2; playerIndex++) {
                     // si è trovato uno slot libero: piazza l'utente lì
                     if (!randomGameRooms[gRoomIndex].players[playerIndex].occupiedSlot) {
-                        newPlayerData = { gameRoomId: gRoomIndex, playerId: playerIndex };
+                        newPlayerData = {
+                            gameRoomId: gRoomIndex,
+                            playerId: playerIndex
+                        };
                     }
                 }
             }
@@ -112,7 +110,10 @@
         if (newPlayerData === undefined) {
             randomGameRooms.push(generateFreeGameRoom());
             randomGameRooms[randomGameRooms.length - 1].state = gameRoomStates.mmaking;
-            newPlayerData = { gameRoomId: randomGameRooms.length - 1, playerId: 0 };
+            newPlayerData = {
+                gameRoomId: randomGameRooms.length - 1,
+                playerId: 0
+            };
         }
 
         // inserisci il giocatore nella game room
@@ -120,13 +121,14 @@
             = generateOccupiedSlot(newPlayerData.gameRoomId, newPlayerData.playerId);
 
         callbacks.onGameRoomsUpdated();
-        return { gameRoomId: newPlayerData.gameRoomId,
-                 playerId:   newPlayerData.playerId,
-                 state:      gameRoomStates.mmaking };
+        return {
+            gameRoomId: newPlayerData.gameRoomId,
+            playerId:   newPlayerData.playerId,
+            state:      gameRoomStates.mmaking
+        };
     };
 
 
-    // rimuove un utente dalla propria gameRoom
     module.exports.removeUserFromGameRoom = function (gameRoomId, playerId) {
         if (slotExists(gameRoomId, playerId)) {
             // pulisci lo slot giocatore
@@ -162,7 +164,8 @@
     module.exports.updateHeartBeat = function (gameRoomId, playerId) {
         if (slotExists(gameRoomId, playerId)) {
             clearTimeout(randomGameRooms[gameRoomId].players[playerId].heartBeatTimer);
-            randomGameRooms[gameRoomId].players[playerId].heartBeatTimer = generateHeartbeatTimer(gameRoomId, playerId);
+            randomGameRooms[gameRoomId].players[playerId].heartBeatTimer
+                = generateHeartbeatTimer(gameRoomId, playerId);
         }
     };
 
@@ -173,31 +176,38 @@
 
 
     let slotExists = function(gameRoomId, playerId) {
-        return randomGameRooms[gameRoomId] !== undefined && randomGameRooms[gameRoomId].players[playerId] !== undefined
+        return randomGameRooms[gameRoomId] !== undefined
+            && randomGameRooms[gameRoomId].players[playerId] !== undefined
     };
 
 
     let generateFreeGameRoom = function () {
-        return { players: [ generateFreeSlot(), generateFreeSlot() ], state: gameRoomStates.free };
+        return {
+            players: [ generateFreeSlot(), generateFreeSlot() ],
+            state: gameRoomStates.free
+        };
     };
 
 
-    // crea uno slot libero da porre su una gameRoom
     let generateFreeSlot = function () {
-        return { occupiedSlot: false, heartBeatTimer: undefined };
+        return {
+            occupiedSlot: false,
+            heartBeatTimer: undefined
+        };
     };
 
 
-    // setta uno slot come occupato, aggiornando la variabile di occupazione e settando un
-    // nuovo timer per gestire l'heartbeat
     let generateOccupiedSlot = function (gameRoomId, playerId) {
-        return { occupiedSlot: true, heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId) };
+        return {
+            occupiedSlot: true,
+            heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId)
+        };
     };
 
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
                     callbacks.onHeartbeatExpired(gameRoomId, playerId)
-                }, 10000);
+        }, 10000);
     };
 }());

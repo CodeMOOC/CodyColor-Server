@@ -3,19 +3,21 @@
  * questo modulo ne gestisce anche la memorizzazione
  */
 (function () {
-    // imports
     let utilities  = require("./utilities");
-    let fileSystem = require('fs');
+    let fileSystem = require("fs");
 
-    // file options
-    let sessionOptions    = { connectedPlayers: 0, randomWaitingPlayers: 0 };
-    let persistentOptions = { totalMatches: 5000 }; // valore di inizializzazione
+    let sessionOptions = {
+        connectedPlayers:     0,
+        randomWaitingPlayers: 0
+    };
+
+    let persistentOptions = {
+        totalMatches: 0  // valore di inizializzazione
+    };
 
     // path del file. In caso di simulazione in locale, utilizza il percorso stesso del programma
-    let optionsFilePath = "/data/codyColorServerOptions.json";
-    if (process.argv[2] === '-l') {
-        optionsFilePath = "./codyColorServerOptions.json";
-    }
+    const optionsFilePath = (process.argv[2] === '-l') ?
+        "./codyColorServerOptions.json" : "/data/codyColorServerOptions.json";
 
     // leggi il file se presente; altrimenti, creane uno nuovo
     fileSystem.readFile(optionsFilePath, 'utf8', function (error, data) {

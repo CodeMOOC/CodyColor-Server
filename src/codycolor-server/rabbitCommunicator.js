@@ -4,135 +4,164 @@
  */
 (function () {
 
-    let stomp     = require('stompjs');
     let utilities = require("./utilities");
-
-    // topic endpoints
-    const serverControlQueue  = '/queue/serverControl';
-    const clientsControlTopic = '/topic/clientsControl';
-    const randGameRoomsTopic  = '/topic/gameRooms';
-    const custGameRoomsTopic  = '/topic/custGameRooms';
-    const generalTopic        = "/topic/general";
-
-    // credenziali connessione al broker. Il parametro -l esegue lo script in locale;
-    // in qualunque altro caso, viene eseguito in modalità standard su docker
-    let stompUrl;
-    if (process.argv[2] === '-l') {
-        stompUrl = 'ws://127.0.0.1:15674/ws';
-    } else {
-        const HOST = process.env.HOST || 'rabbit';
-        const PORT = process.env.PORT || 15674;
-        stompUrl = `ws://${HOST}:${PORT}/ws`;
-    }
-    const username    = 'guest';
-    const password    = 'guest';
-    const vHost       = '/';
-    let client;
-    let connected = false;
-
-    // costante di controllo
+    const messageTypes = utilities.messageTypes;
     const gameTypes = utilities.gameTypes;
 
-    // memorizza le funzioni invocate all'arrivo di nuovi messaggi
-    let callbacks = {};
+    let stomp = require('stompjs');
+    let client;
+    let connected = false;
+    let onMessageCallbacks = {};
 
-    // tenta la connessione al broker; in caso di connessione completata, sottoscrive la queue server. Inizializza
-    // inoltre i callbacks
-    module.exports.connect = function (callbacksArg) {
-        if (callbacksArg !== undefined)
-            callbacks = callbacksArg;
+    const endpoints = {
+        serverControlQueue:   "/queue/serverControl",
+        clientControlTopic:   "/topic/clientsControl",
+        generalTopic:         "/topic/general",
+        randomGameRoomsTopic: "/topic/gameRooms",
+        customGameRoomsTopic: "/topic/custGameRooms",
+        royaleGameRoomsTopic: "/topic/agaGameRooms"
+    };
+
+    const credentials = {
+        username:   "guest",
+        password:   "guest",
+        vHost:      "/",
+    };
+
+    // Il parametro -l esegue lo script in locale
+    const host = process.env.HOST || 'rabbit';
+    const port = process.env.PORT || 15674;
+    const stompUrl = (process.argv[2] === '-l') ?
+        "ws://127.0.0.1:15674/ws" : `ws://${host}:${port}/ws`;
+
+
+    // tenta la connessione al broker; in caso di connessione completata, sottoscrive
+    // la queue server. Inizializza inoltre i callbacks
+    module.exports.connect = function (callbacks) {
+        if (callbacks !== undefined)
+            onMessageCallbacks = callbacks;
 
         utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
         client = stomp.overWS(stompUrl);
-        client.connect(username, password, onConnect, onError, vHost);
+        client.connect(
+            credentials.username,
+            credentials.password,
+            onConnect,
+            onError,
+            credentials.vHost
+        );
 
-        // thread di controllo e retry
+        // thread di controllo per eventuale connection retry
         setInterval(function () {
             if (!connected) {
                 utilities.printLog(true, "Connection to the broker not available. Retrying...");
                 utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
                 client = stomp.overWS(stompUrl);
-                client.connect(username, password, onConnect, onError, vHost);
+                client.connect(
+                    credentials.username,
+                    credentials.password,
+                    onConnect,
+                    onError,
+                    credentials.vHost
+                );
             }
         }, 10000);
     };
 
+
     // invia un messaggio alla queue di controllo diretta del client
-    module.exports.sendToClientControlQueue = function(correlationId, message) {
-        client.send(clientsControlTopic + '.' + correlationId, {}, JSON.stringify(message));
+    module.exports.sendInClientControlQueue = function(correlationId, message) {
+        client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in client queue`);
     };
 
-    // invia un messaggio nel topic general
-    module.exports.sendToGeneralTopic = function(message) {
-        client.send(generalTopic, {}, JSON.stringify(message));
+
+    module.exports.sendInGeneralTopic = function(message) {
+        client.send(endpoints.generalTopic, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in general topic`);
     };
 
-    // invia un messaggio in una game room
-    module.exports.sendToGameRoomTopic = function(message) {
-        let gameRoomsTopic = (message.gameType === gameTypes.custom ? custGameRoomsTopic : randGameRoomsTopic);
 
-        client.send(gameRoomsTopic + '.' + message.gameRoomId, {}, JSON.stringify(message));
+    module.exports.sendInGameRoomTopic = function(message) {
+        client.send(getGameRoomEndpoint(message.gameType, message.gameRoomId), {}, JSON.stringify(message));
         utilities.printLog(false,
             `Sent ${message.msgType} in ${message.gameType} game room ${message.gameRoomId}`);
     };
 
 
-    // a connessione avvenuta, lo script si pone in ascolto di messaggi in arrivo dai client,
-    // nella queue riservata al server. Invoca il callback corrispondente per ogni tipo di messaggio
+    let getGameRoomEndpoint = function(gameType, gameRoomId) {
+        switch (gameType) {
+            case gameTypes.random: {
+                return endpoints.randomGameRoomsTopic + '.' + gameRoomId;
+            }
+            case gameTypes.custom: {
+                return endpoints.customGameRoomsTopic + '.' + gameRoomId;
+            }
+            case gameTypes.royale: {
+                return endpoints.royaleGameRoomsTopic + '.' + gameRoomId;
+            }
+        }
+    };
+
+
+    // a connessione avvenuta, lo script si pone in ascolto di messaggi in arrivo dai client
     let onConnect = function () {
         utilities.printLog(true, 'Connection to the broker ready');
         connected = true;
 
-        client.subscribe(serverControlQueue, function (receivedMessage) {
-            let messageBody = JSON.parse(receivedMessage.body);
-
-            if (messageBody.msgType === undefined || messageBody.gameRoomId === -1) {
-                // probabilmente, ping-pong dal broker; ignora
-                return;
-            }
-
-            switch (messageBody.msgType) {
-                case 'connectedSignal':
-                    safeCall('onConnectedSignal', messageBody);
-                    break;
-
-                case 'gameRequest':
-                    safeCall('onGameRequest', messageBody);
-                    break;
-
-                case 'quitGame':
-                    safeCall('onQuitGame', messageBody);
-                    break;
-
-                case 'heartbeat':
-                    safeCall('onHeartbeat', messageBody);
-                    break;
-
-                case 'tilesRequest':
-                    safeCall('onTilesRequest', messageBody);
-                    break;
-
-                default:
-                    safeCall('onInvalidMessage', messageBody);
-                    break;
-            }
-        }, { durable: false, exclusive: false });
+        client.subscribe(
+            endpoints.serverControlQueue,
+            handleIncomingMessages,
+            { durable: false, exclusive: false }
+        );
         utilities.printLog(true, 'Waiting for messages...');
     };
 
 
-    // in caso di errore, il programma ritenta la connessione dopo 10 secondi
     let onError = function () {
         utilities.printLog(true, 'Error connecting to the broker.');
         connected = false;
     };
 
 
-    // invoca un callback in modo 'sicuro', facendo in modo che non vanga invocato nel caso in cui non fosse definito
-    let safeCall = function (callbackName, messageBody) {
-        if (callbacks[callbackName] !== undefined)
-            callbacks[callbackName](messageBody);
+    let handleIncomingMessages = function (rawMessage) {
+        let message = JSON.parse(rawMessage.body);
+
+        if (message.msgType === undefined || message.gameRoomId === -1) {
+            // ping-pong dal broker o messaggio mal formato
+            return;
+        }
+
+        switch (message.msgType) {
+            case messageTypes.connectedSignal:
+                if (onMessageCallbacks.onConnectedSignal !== undefined)
+                    onMessageCallbacks.onConnectedSignal(message);
+                break;
+
+            case messageTypes.gameRequest:
+                if (onMessageCallbacks.onGameRequest !== undefined)
+                    onMessageCallbacks.onGameRequest(message);
+                break;
+
+            case messageTypes.quitGame:
+                if (onMessageCallbacks.onQuitGame !== undefined)
+                    onMessageCallbacks.onQuitGame(message);
+                break;
+
+            case messageTypes.heartbeat:
+                if (onMessageCallbacks.onHeartbeat !== undefined)
+                    onMessageCallbacks.onHeartbeat(message);
+                break;
+
+            case messageTypes.tilesRequest:
+                if (onMessageCallbacks.onTilesRequest !== undefined)
+                    onMessageCallbacks.onTilesRequest(message);
+                break;
+
+            default:
+                if (onMessageCallbacks.onInvalidMessage !== undefined)
+                    onMessageCallbacks.onInvalidMessage(message);
+                break;
+        }
     };
 }());
