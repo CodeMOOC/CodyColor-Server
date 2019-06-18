@@ -163,6 +163,7 @@
                 gameRoomId:   newPlayerData.gameRoomId,
                 playerId:     newPlayerData.playerId,
                 state:        royaleGameRooms[newPlayerData.gameRoomId].state,
+                gameName:     royaleGameRooms[newPlayerData.gameRoomId].gameName,
                 code:         royaleGameRooms[newPlayerData.gameRoomId].code,
                 timerSetting: royaleGameRooms[newPlayerData.gameRoomId].timerSetting,
                 date:         royaleGameRooms[newPlayerData.gameRoomId].date
@@ -174,7 +175,8 @@
     // rimuove un utente dalla propria gameRoom
     module.exports.removeUserFromGameRoom = function(gameRoomId, playerId) {
         if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
-            let forceRemove = gameRoomId === 0 && royaleGameRooms[gameRoomId].date === undefined;
+            let forceRemove = gameRoomId === 0 && royaleGameRooms[gameRoomId].date === undefined
+                && royaleGameRooms[gameRoomId].state === gameRoomStates.mmaking;
 
             // pulisci lo slot giocatore
             clearTimeout(royaleGameRooms[gameRoomId].players[playerId].heartBeatTimer);

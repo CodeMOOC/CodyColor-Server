@@ -27,11 +27,13 @@
         royale: 'royale'
     };
 
+
     module.exports.gameRoomStates = {
         mmaking: 'mmaking',
         playing: 'playing',
-        free: 'free'
+        free:    'free'
     };
+    
 
     module.exports.messageTypes = {
         gameRequest:      "gameRequest",
