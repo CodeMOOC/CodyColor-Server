@@ -3,6 +3,8 @@ version: '3'
 volumes:
   codycolor-data:
     external: true
+  codycolor-database:
+    external: true
 
 networks:
   web:
@@ -23,7 +25,6 @@ services:
     - "traefik.docker.network=web"
     - "traefik.protocol=http"
     - "traefik.port=15674"
-    - "traefik.frontend.rule=Host:botify.it;PathPrefixStrip:/codycolor"
     - "traefik.frontend.entryPoints=https"
 
   server:
@@ -33,5 +34,22 @@ services:
     env_file: ../config.env
     depends_on:
     - rabbit
+    - database
     volumes:
     - codycolor-data:/data:rw
+
+  database:
+    image: mysql:5.7
+    networks:
+    - backend
+    env_file: ../config.env
+    volumes:
+    - codycolor-database:/var/lib/mysql:rw
+
+  database-client:
+    build: ../src/database-client
+    depends_on:
+    - database
+    networks:
+    - backend
+    env_file: ../config.env
