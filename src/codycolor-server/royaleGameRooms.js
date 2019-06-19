@@ -175,7 +175,7 @@
     // rimuove un utente dalla propria gameRoom
     module.exports.removeUserFromGameRoom = function(gameRoomId, playerId) {
         if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
-            let forceRemove = gameRoomId === 0 && royaleGameRooms[gameRoomId].date === undefined
+            let forceRemove = playerId === 0 && royaleGameRooms[gameRoomId].date === undefined
                 && royaleGameRooms[gameRoomId].state === gameRoomStates.mmaking;
 
             // pulisci lo slot giocatore

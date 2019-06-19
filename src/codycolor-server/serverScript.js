@@ -5,27 +5,27 @@
  * collegati in multi player, sincronizza le partite e ne memorizza dati persistenti
  */
 
-const mysql = require('mysql');
-const connection = mysql.createConnection({
-    host     : 'database',
-    user     : process.env.MYSQL_USER,
-    password : process.env.MYSQL_PASSWORD,
-    database : process.env.MYSQL_DATABASE
-});
-connection.connect();
-connection.query("SELECT 2 + 2 AS solution", (err, results, fields) => {
-    if(err)
-        throw err;
-    console.log('2 + 2 = ' + results[0].solution);
-});
-connection.query("INSERT INTO `Sample` (`ID`, `Value`) VALUES(DEFAULT, 'Prova')", (err, results, fields) => {
-    if(err)
-        throw err;
-    console.log("Inserted");
-});
-connection.end();
-
-return;
+if (process.argv[2] !== '-l') {
+    const mysql = require('mysql');
+    const connection = mysql.createConnection({
+        host: 'database',
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+        database: process.env.MYSQL_DATABASE
+    });
+    /*connection.connect();
+    connection.query("SELECT 2 + 2 AS solution", (err, results, fields) => {
+        if (err)
+            throw err;
+        console.log('2 + 2 = ' + results[0].solution);
+    });
+    connection.query("INSERT INTO `Sample` (`ID`, `Value`) VALUES(DEFAULT, 'Prova')", (err, results, fields) => {
+        if (err)
+            throw err;
+        console.log("Inserted");
+    });
+    connection.end();*/
+}
 
 // imports
 let utilities = require('./utilities');
