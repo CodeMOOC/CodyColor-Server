@@ -74,7 +74,7 @@
 
         // caso nuova partita
         if (args.fromInvitation === undefined || !args.fromInvitation)
-            responseValue = addOrganizerPlayer(args.dateValue, args.timerSetting, args.gameName);
+            responseValue = addOrganizerPlayer(args.dateValue, args.timerSetting, args.gameName, args.maxPlayersSetting);
         else
             responseValue = addInvitedPlayer(args.invitationCode);
 
@@ -83,7 +83,7 @@
     };
 
 
-    let addOrganizerPlayer = function(dateValue, timerSettingValue, gameNameValue) {
+    let addOrganizerPlayer = function(dateValue, timerSettingValue, gameNameValue, maxPlayersSettingValue) {
         let newPlayerGameRoom = undefined;
 
         // ci sono delle game rooms: stabilisci se ce ne sono di libere
@@ -103,6 +103,7 @@
         // occupa il primo slot della gameRoom risultante dalla ricerca
         royaleGameRooms[newPlayerGameRoom].date  = dateValue;
         royaleGameRooms[newPlayerGameRoom].timerSetting  = timerSettingValue;
+        royaleGameRooms[newPlayerGameRoom].maxPlayersSetting  = maxPlayersSettingValue;
         royaleGameRooms[newPlayerGameRoom].state = gameRoomStates.mmaking;
         royaleGameRooms[newPlayerGameRoom].gameName = gameNameValue;
         royaleGameRooms[newPlayerGameRoom].players.push(generateOccupiedSlot(newPlayerGameRoom, 0));
@@ -118,6 +119,7 @@
             playerId: 0,
             gameName: royaleGameRooms[newPlayerGameRoom].gameName,
             timerSetting: timerSettingValue,
+            maxPlayersSetting: maxPlayersSettingValue,
             code: royaleGameRooms[newPlayerGameRoom].code,
             state: gameRoomStates.mmaking,
             date: royaleGameRooms[newPlayerGameRoom].date
@@ -131,7 +133,7 @@
         for (let gRoomIndex = 0; gRoomIndex < royaleGameRooms.length; gRoomIndex++) {
             if (royaleGameRooms[gRoomIndex].code.toString() === invitationCode.toString()
                 && royaleGameRooms[gRoomIndex].state === gameRoomStates.mmaking
-                && royaleGameRooms[gRoomIndex].players.length < 20) {
+                && royaleGameRooms[gRoomIndex].players.length < royaleGameRooms[gRoomIndex].maxPlayersSetting) {
 
                 for (let playerIndex = 0; playerIndex < royaleGameRooms[gRoomIndex].players.length; playerIndex++) {
                     // game room trovata: se ci sono slot liberi, occupane uno
@@ -166,6 +168,7 @@
                 gameName:     royaleGameRooms[newPlayerData.gameRoomId].gameName,
                 code:         royaleGameRooms[newPlayerData.gameRoomId].code,
                 timerSetting: royaleGameRooms[newPlayerData.gameRoomId].timerSetting,
+                maxPlayersSetting: royaleGameRooms[newPlayerData.gameRoomId].maxPlayersSetting,
                 date:         royaleGameRooms[newPlayerData.gameRoomId].date
             };
         }

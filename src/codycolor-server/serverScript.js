@@ -60,6 +60,7 @@ rabbit.connect({
             invitationCode: message.code,
             dateValue: message.date,
             timerSetting: message.timerSetting,
+            maxPlayersSetting: message.maxPlayersSetting,
             gameName: message.gameName
         });
         let responseMessage;
@@ -70,6 +71,7 @@ rabbit.connect({
                 playerId: playerData.playerId,
                 code: playerData.code,
                 gameType: message.gameType,
+                maxPlayersSetting: playerData.maxPlayersSetting,
                 gameName: playerData.gameName,
                 timerSetting: playerData.timerSetting,
                 date: playerData.date,
