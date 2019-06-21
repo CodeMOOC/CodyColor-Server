@@ -22,6 +22,8 @@ make up
 
 ## NodeJS code organization
 
-Referring to the NodeJS executable, it is possible to visualize relatione between the various modules using the following class diagram:
+Referring to the NodeJS executable, it is possible to visualize relations between the various modules using the following class diagram. 
 
-// todo: add class diagram
+![CodyColor Multiplayer Server Class Diagram](ServerDiagram.png)
+
+It is important to underline that the code is not divided in class (even because JavaScript does not completely support OOP), and the diagram does not reports all methods and attributes contained in the modules. Nevertheless, the diagram is very useful to understand the dependencies between the various modules, and to know how the various featues are organized inside the script.
