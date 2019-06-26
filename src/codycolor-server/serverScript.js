@@ -147,21 +147,29 @@ rabbit.connect({
         utilities.printLog(false, 'Received tiles request from ' + message.gameType +
             ' game room ' + message.gameRoomId);
 
-        let responseMessage = {
-            msgType: messageTypes.tilesResponse,
-            gameRoomId: message.gameRoomId,
-            gameType: message.gameType,
-            playerId: 'server',
-            tiles: generateTiles()
-        };
-
-        rabbit.sendInGameRoomTopic(responseMessage);
-        options.addTotalMatches();
-
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        gameRoomHandler.startMatch(message.gameRoomId);
+        let requestValid = gameRoomHandler.startMatch(message.gameRoomId);
 
-        utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
+        if(requestValid !== undefined && requestValid === false) {
+            rabbit.sendInGameRoomTopic({
+                msgType: messageTypes.quitGame,
+                gameRoomId: message.gameRoomId,
+                playerId: 'server',
+                gameType: message.gameType
+            });
+            utilities.printLog(false, "Invalid tiles request.")
+        } else {
+            rabbit.sendInGameRoomTopic({
+                msgType: messageTypes.tilesResponse,
+                gameRoomId: message.gameRoomId,
+                gameType: message.gameType,
+                playerId: 'server',
+                tiles: generateTiles()
+            });
+            options.addTotalMatches();
+            utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
+        }
+
         utilities.printLog(true, 'Waiting for messages...');
 
     }, onInvalidMessage: function (message) {

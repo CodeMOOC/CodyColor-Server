@@ -17,7 +17,7 @@
 
     // path del file. In caso di simulazione in locale, utilizza il percorso stesso del programma
     const optionsFilePath = (process.argv[2] === '-l') ?
-        "./codyColorServerOptions.json" : "/data/codyColorServerOptions.json";
+        "./codyColorServerOptions.json" : "/data/codyColorServerOptions2.json";
 
     // leggi il file se presente; altrimenti, creane uno nuovo
     fileSystem.readFile(optionsFilePath, 'utf8', function (error, data) {

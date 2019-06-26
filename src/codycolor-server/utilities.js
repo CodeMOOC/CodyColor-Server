@@ -18,7 +18,7 @@
     };
 
 
-    module.exports.requiredClientVersion  = '1.0.9';
+    module.exports.requiredClientVersion  = '2.0.1';
 
 
     module.exports.gameTypes = {

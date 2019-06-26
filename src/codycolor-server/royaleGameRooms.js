@@ -86,6 +86,9 @@
     let addOrganizerPlayer = function(dateValue, timerSettingValue, gameNameValue, maxPlayersSettingValue) {
         let newPlayerGameRoom = undefined;
 
+        if (maxPlayersSettingValue === undefined)
+            maxPlayersSettingValue = 20;
+
         // ci sono delle game rooms: stabilisci se ce ne sono di libere
         for (let gRoomIndex = 0; gRoomIndex < royaleGameRooms.length; gRoomIndex++) {
             if (royaleGameRooms[gRoomIndex].state === gameRoomStates.free) {
@@ -210,8 +213,14 @@
 
 
     module.exports.startMatch = function(gameRoomId) {
-        royaleGameRooms[gameRoomId].state = gameRoomStates.playing;
-        cleanGameRoom(gameRoomId);
+        if (gameRoomId <= royaleGameRooms.length && royaleGameRooms[gameRoomId] !== undefined) {
+            royaleGameRooms[gameRoomId].state = gameRoomStates.playing;
+            cleanGameRoom(gameRoomId);
+            return true;
+        } else {
+            cleanGameRoom(gameRoomId);
+            return false;
+        }
     };
 
 
