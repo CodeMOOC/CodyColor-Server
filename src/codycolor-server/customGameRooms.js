@@ -52,162 +52,423 @@
     };
 
 
-    // verifica se i dati del giocatore sono validi
-    module.exports.isPlayerDataValid = function(gameRoomId, playerId) {
-        return gameRoomId !== -1
-            && playerId !== -1
-            && customGameRooms.length !== 0
-            && gameRoomId <= customGameRooms.length
-            && customGameRooms[gameRoomId] !== undefined
-            && customGameRooms[gameRoomId].players[playerId] !== undefined;
-    };
-
-
     // aggiunge un riferimento all'utente nel primo slot valido.
     // Ritorna un oggetto contenente gameRoom e playerId assegnati al richiedente.
     // L'eventuale callback passato viene eseguito non appena le gameRoom vengono aggiornate
-    module.exports.addUserToGameRoom = function(args) {
-        let responseValue = undefined;
+    module.exports.handleGameRequest = function(message) {
+        // SUCCESS: game room trovata/generata
+        let result = {
+            success: false,
+            gameRoomId: undefined,
+            playerId: undefined,
+            messages: []
+        };
 
-        if (args.fromInvitation === undefined || !args.fromInvitation)
-            responseValue = addOrganizerPlayer();
-        else
-            responseValue = addInvitedPlayer(args.invitationCode);
+        let organizer = false;
 
+        if (message.code === '0000') {
+            organizer = true;
+            result = addOrganizerPlayer();
+        } else if (message.code !== undefined)
+            result = addInvitedPlayer(message.code);
+
+
+        if (!result.success) {
+            result.messages.push({
+                msgType: utilities.messageTypes.s_gameResponse,
+                gameType: utilities.gameTypes.custom,
+                code: '0000',
+                correlationId: message.correlationId,
+            });
+            return result;
+        }
+
+        // inserisci il giocatore nella game room
+        customGameRooms[result.gameRoomId].players[result.playerId]
+            = generateOccupiedSlot(result.gameRoomId, result.playerId);
+
+        // valida giocatore, se possibile
+        if (message.nickname !== undefined && message.nickname !== "Anonymous") {
+            customGameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.nickname;
+            customGameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
+        }
+
+        customGameRooms[result.gameRoomId].gameData.gameRoomId = result.gameRoomId;
+        customGameRooms[result.gameRoomId].players[result.playerId].gameData.playerId = result.playerId;
+
+        if (organizer) {
+            customGameRooms[result.gameRoomId].players[0].gameData.organizer = true;
+            customGameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
+        }
+
+        // crea i messaggi di risposta
         callbacks.onGameRoomsUpdated();
-        return responseValue;
+        result.messages.push({
+            msgType: utilities.messageTypes.s_gameResponse,
+            gameType: utilities.gameTypes.custom,
+            gameRoomId: result.gameRoomId,
+            playerId: result.playerId,
+            code: customGameRooms[result.gameRoomId].gameData.code,
+            correlationId: message.correlationId,
+            gameData: getGameRoomData(result.gameRoomId)
+        });
+
+        if (customGameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
+            result.messages.push({
+                msgType: utilities.messageTypes.s_playerAdded,
+                gameType: utilities.gameTypes.custom,
+                gameRoomId: result.gameRoomId,
+                addedPlayerId: result.playerId,
+                gameData: getGameRoomData(result.gameRoomId)
+            });
+        }
+
+        return result;
     };
 
 
     let addOrganizerPlayer = function() {
-        let newPlayerGameRoomId = undefined;
+        let result = {
+            success: false,
+            gameRoomId: undefined,
+            playerId: undefined,
+            messages: []
+        };
 
         // cerca il primo slot libero tra le gameRoom
         for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
             if (customGameRooms[gRoomIndex].state === gameRoomStates.free) {
-                newPlayerGameRoomId = gRoomIndex;
+                result.gameRoomId = gRoomIndex;
+                result.playerId = 0;
+                result.success = true;
             }
         }
 
         // non c'è uno slot libero: crea una nuova game room
-        if (newPlayerGameRoomId === undefined) {
-            customGameRooms.push(generateFreeGameRoom());
-            customGameRooms[customGameRooms.length - 1].state = gameRoomStates.mmaking;
-            newPlayerGameRoomId = customGameRooms.length - 1;
+        if (result.gameRoomId === undefined && result.playerId === undefined) {
+            result.gameRoomId = customGameRooms.length;
+            result.playerId = 0;
+            result.success = true;
+            customGameRooms.push(
+                generateGameRoom(result.gameRoomId, gameRoomStates.mmaking)
+            );
         }
 
-        // inserisci il giocatore nella game room
-        customGameRooms[newPlayerGameRoomId].players[0] = generateOccupiedSlot(newPlayerGameRoomId, 0);
-
-        return {
-            gameRoomId: newPlayerGameRoomId,
-            playerId:   0,
-            state:      gameRoomStates.mmaking,
-            code:       customGameRooms[newPlayerGameRoomId].code
-        };
+        return result;
     };
 
 
     let addInvitedPlayer = function(invitationCode) {
         // si è stati invitati: cerca la gameRoom che ha proposto la partita
-        let newPlayerGameRoomId = undefined;
+        let result = {
+            success: false,
+            gameRoomId: undefined,
+            playerId: undefined,
+            messages: []
+        };
+
         for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
-            if (customGameRooms[gRoomIndex].code.toString() === invitationCode.toString()
-                && customGameRooms[gRoomIndex].state === gameRoomStates.mmaking
+            if (customGameRooms[gRoomIndex].gameData.code.toString() === invitationCode.toString()
+                && customGameRooms[gRoomIndex].gameData.state === gameRoomStates.mmaking
                 && !customGameRooms[gRoomIndex].players[1].occupiedSlot) {
-                newPlayerGameRoomId = gRoomIndex;
+                result.gameRoomId = gRoomIndex;
+                result.playerId = 1;
+                result.success = true;
             }
         }
 
-        if (newPlayerGameRoomId !== undefined) {
-            // gameRoom trovata: aggiungi giocatore
-            customGameRooms[newPlayerGameRoomId].players[1] = generateOccupiedSlot(newPlayerGameRoomId, 1);
-            return {
-                gameRoomId: newPlayerGameRoomId,
-                playerId:   1,
-                code:       customGameRooms[newPlayerGameRoomId].code,
-                state:      gameRoomStates.mmaking
-            };
-        }
+        return result;
     };
 
 
-    // rimuove un utente dalla propria gameRoom
-    module.exports.removeUserFromGameRoom = function(gameRoomId, playerId) {
-        if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
-            // pulisci lo slot giocatore
-            clearTimeout(customGameRooms[gameRoomId].players[playerId].heartBeatTimer);
-            customGameRooms[gameRoomId].players[playerId] = generateFreeSlot();
+    module.exports.handleValidation = function (message) {
+        let result = {
+            success: false,
+            messages: []
+        };
 
-            // pulisci la game room se necessario
-            if (customGameRooms[gameRoomId].state === gameRoomStates.playing) {
-                let noPlayers = true;
-                for (let playerIndex = 0; playerIndex < customGameRooms[gameRoomId].players.length; playerIndex++) {
-                    if (customGameRooms[gameRoomId].players[playerIndex].occupiedSlot)
-                        noPlayers = false;
-                }
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
 
-                if (noPlayers)
-                    customGameRooms[gameRoomId] = generateFreeGameRoom();
-            }
+        result.success = true;
+        result.messages.push({
+            msgType: utilities.messageTypes.s_playerAdded,
+            gameType: message.gameType,
+            gameRoomId: message.gameRoomId,
+            addedPlayerId: message.playerId,
+            gameData: getGameRoomData(message.gameRoomId)
+        });
 
-            // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
-            for (let gRoomIndex = customGameRooms.length - 1; gRoomIndex >= 0; gRoomIndex--) {
-                if (customGameRooms[gRoomIndex].state === gameRoomStates.free)
-                    customGameRooms.splice(gRoomIndex, 1);
-                else
-                    break;
-            }
+        return result;
+    };
 
-            callbacks.onGameRoomsUpdated();
-        }
+
+    module.exports.handlePlayerQuit = function (message) {
+        let result = {
+            success: false,
+            messages: []
+        };
+
+        // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
+        clearGameRoom(message.gameRoomId);
+        result.success = true;
+        result.messages.push({
+            msgType: utilities.messageTypes.s_gameQuit,
+            gameRoomId: message.gameRoomId,
+            gameType: message.gameType,
+        });
+
+        callbacks.onGameRoomsUpdated();
+        return result;
     };
 
 
     // aggiorna il timer heartbeat di un giocatore. invocato all'arrivo di un messaggio di heartbeat
-    module.exports.updateHeartBeat = function(gameRoomId, playerId) {
-        if (module.exports.isPlayerDataValid(gameRoomId, playerId)) {
-            clearTimeout(customGameRooms[gameRoomId].players[playerId].heartBeatTimer);
-            customGameRooms[gameRoomId].players[playerId].heartBeatTimer
-                = generateHeartbeatTimer(gameRoomId, playerId);
+    module.exports.handleHeartbeat = function (message) {
+        let result = {
+            success: false,
+            messages: []
+        };
+
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.messages.push({
+                msgType: utilities.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: message.gameType
+            });
+
+        } else {
+            clearTimeout(customGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
+            customGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer
+                = generateHeartbeatTimer(message.gameRoomId, message.playerId);
+            result.success = true;
+        }
+
+        return result;
+
+    };
+
+
+    module.exports.handleReadyMessage = function (message) {
+        let result = {
+            success: false,
+            messages: []
+        };
+
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
+        result.success = startMatchCheck(message.gameRoomId);
+
+        if (result.success) {
+            for (let i = 0; i < customGameRooms[message.gameRoomId].players.length; i++) {
+                customGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+                customGameRooms[message.gameRoomId].players[i].gameData.ready = false;
+            }
+            customGameRooms[message.gameRoomId].gameData.state = utilities.gameRoomStates.playing;
+            customGameRooms[message.gameRoomId].gameData.tiles = utilities.generateTiles();
+            result.messages.push({
+                msgType: utilities.messageTypes.s_startMatch,
+                gameRoomId: message.gameRoomId,
+                gameType: utilities.gameTypes.custom,
+                tiles: customGameRooms[message.gameRoomId].gameData.tiles,
+                gameData: getGameRoomData(message.gameRoomId)
+            });
+            // todo avvia cronometro di sincronizzazione?
+        }
+
+        return result;
+    };
+
+
+    module.exports.handlePositionedMessage = function (message) {
+        let result = {
+            success: false,
+            messages: []
+        };
+
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.distance = message.distance;
+        result.success = startAnimationCheck(message.gameRoomId);
+
+        if (result.success) {
+            result.messages.push({
+                msgType: utilities.messageTypes.s_startAnimation,
+                gameRoomId: message.gameRoomId,
+                gameType: utilities.gameTypes.custom,
+                gameData: getGameRoomData(message.gameRoomId)
+            });
+        }
+
+        return result;
+    };
+
+
+    module.exports.handleEndAnimationMessage = function (message) {
+        let result = {
+            success: false, // success: termina il match
+            messages: []
+        };
+
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.points
+            += customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points;
+        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = message.pathLength;
+
+        if (message.winner) {
+            customGameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
+        }
+        result.success = endMatchCheck(message.gameRoomId);
+
+        if (result.success) {
+            customGameRooms[message.gameRoomId].gameData.state = utilities.gameRoomStates.aftermatch;
+            customGameRooms[message.gameRoomId].gameData.matchCount++;
+
+            result.messages.push({
+                msgType: utilities.messageTypes.s_endMatch,
+                gameRoomId: message.gameRoomId,
+                gameType: utilities.gameTypes.custom,
+                gameData: getGameRoomData(message.gameRoomId)
+            });
+        }
+
+        return result;
+    };
+
+
+    let clearGameRoom = function(gameRoomId) {
+        // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
+        if (gameRoomExists(gameRoomId)) {
+            for (let j = 0; j < customGameRooms[gameRoomId].players.length; j++) {
+                if (customGameRooms[gameRoomId].players[j].heartBeatTimer !== undefined)
+                    clearTimeout(customGameRooms[gameRoomId].players[j].heartBeatTimer);
+            }
+
+            customGameRooms[gameRoomId] = generateGameRoom(gameRoomId, gameRoomStates.free);
+        }
+
+        // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
+        for (let i = customGameRooms.length - 1; i >= 0; i--) {
+            if (customGameRooms[i].gameData.state === gameRoomStates.free)
+                customGameRooms.splice(i, 1);
+            else
+                break;
         }
     };
 
 
-    module.exports.startMatch = function(gameRoomId) {
-        customGameRooms[gameRoomId].state = gameRoomStates.playing;
+    let slotExists = function (gameRoomId, playerId) {
+        return customGameRooms[gameRoomId] !== undefined
+            && customGameRooms[gameRoomId].players[playerId] !== undefined;
     };
 
 
-    let generateFreeGameRoom = function() {
+    let gameRoomExists = function (gameRoomId) {
+        return customGameRooms[gameRoomId] !== undefined;
+    };
+
+
+    let generateGameRoom = function (gameRoomId, state) {
         return {
-            players: [ generateFreeSlot(), generateFreeSlot() ],
-            state:   gameRoomStates.free,
-            code:    generateUniqueCode()
+            players: [generateFreeSlot(), generateFreeSlot()],
+            gameData: generateGeneralGameData(gameRoomId, state)
         };
     };
 
 
-    let generateFreeSlot = function() {
+    let generateFreeSlot = function () {
         return {
             occupiedSlot: false,
-            heartBeatTimer: undefined
+            heartBeatTimer: undefined,
+            gameData: generatePlayerGameData()
         };
     };
 
 
-    let generateOccupiedSlot = function(gameRoomId, playerId) {
+    let generateOccupiedSlot = function (gameRoomId, playerId) {
         return {
             occupiedSlot: true,
-            heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId)
+            heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId),
+            gameData: generatePlayerGameData(gameRoomId, playerId)
         };
     };
 
 
-    let generateHeartbeatTimer = function(gameRoomId, playerId) {
-        return setTimeout(function() {
+    let generateHeartbeatTimer = function (gameRoomId, playerId) {
+        return setTimeout(function () {
             callbacks.onHeartbeatExpired(gameRoomId, playerId)
         }, 10000);
+    };
+
+
+    let getGameRoomData = function (gameRoomId) {
+        if (gameRoomExists(gameRoomId)) {
+            let gRoomData = {};
+            gRoomData.general = customGameRooms[gameRoomId].gameData;
+            gRoomData.players = [];
+            for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
+                if (customGameRooms[gameRoomId].players[i].occupiedSlot  &&
+                    customGameRooms[gameRoomId].players[i].gameData.validated)
+                    gRoomData.players.push(customGameRooms[gameRoomId].players[i].gameData)
+            }
+            return gRoomData;
+        }
+    };
+
+
+    let startMatchCheck = function (gameRoomId) {
+        if (!gameRoomExists(gameRoomId)) {
+            return;
+        }
+
+        let allReady = true;
+        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
+            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
+                !customGameRooms[gameRoomId].players[i].gameData.ready) {
+                allReady = false;
+                break;
+            }
+        }
+
+        return allReady;
+    };
+
+
+    let startAnimationCheck = function (gameRoomId) {
+        if (!gameRoomExists(gameRoomId)) {
+            return;
+        }
+
+        let allPositioned = true;
+        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
+            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
+                !customGameRooms[gameRoomId].players[i].gameData.match.positioned) {
+                allPositioned = false;
+                break;
+            }
+        }
+
+        return allPositioned;
+    };
+
+
+    let endMatchCheck = function (gameRoomId) {
+        if (!gameRoomExists(gameRoomId)) {
+            return;
+        }
+
+        let allAnimationFinished = true;
+        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
+            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
+                !customGameRooms[gameRoomId].players[i].gameData.match.animationEnded) {
+                allAnimationFinished = false;
+                break;
+            }
+        }
+
+        return allAnimationFinished;
     };
 
 
@@ -228,5 +489,51 @@
         } while (!unique);
 
         return newCode;
+    };
+
+    /* -------------------------------------------------------------------- *
+    * Initializers: metodi per 'pulire' la struttura dati, nel momento
+    * in cui vada resettata
+    * -------------------------------------------------------------------- */
+
+    let generateEmptyPlayerMatch = function () {
+        return {
+            time: -1,
+            points: 0,
+            pathLength: 0,
+            animationEnded: false,
+            positioned: false,
+            startPosition: {
+                side: -1,
+                distance: -1
+            },
+        };
+    };
+
+
+    let generatePlayerGameData = function (gameRoomId, playerId) {
+        return {
+            nickname: 'Anonymous',
+            points: 0,
+            wonMatches: 0,
+            playerId: (playerId !== undefined) ? playerId : -1,
+            ready: false,
+            validated: false,
+            organizer: playerId === 0,
+            match: generateEmptyPlayerMatch()
+        }
+    };
+
+
+    let generateGeneralGameData = function (gameRoomId, state) {
+        return {
+            gameRoomId: (gameRoomId !== undefined) ? gameRoomId : -1,
+            matchCount: 0,
+            tiles: undefined,
+            state: (state !== undefined) ? state : gameRoomStates.free,
+            timerSetting: 30,
+            gameType: utilities.gameTypes.custom,
+            code: generateUniqueCode()
+        }
     };
 }());

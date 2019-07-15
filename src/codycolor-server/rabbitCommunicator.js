@@ -12,6 +12,7 @@
     let client;
     let connected = false;
     let onMessageCallbacks = {};
+    let lastMsgId;
 
     const endpoints = {
         serverControlQueue:   "/queue/serverControl",
@@ -71,12 +72,15 @@
 
     // invia un messaggio alla queue di controllo diretta del client
     module.exports.sendInClientControlQueue = function(correlationId, message) {
+        // aggiunge un id univoco al messaggio
+        utilities.extend(true, message, { msgId: (Math.floor(Math.random() * 100000)).toString() });
         client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in client queue`);
     };
 
 
     module.exports.sendInGeneralTopic = function(message) {
+        utilities.extend(true, message, { msgId: (Math.floor(Math.random() * 100000)).toString() });
         client.send(endpoints.generalTopic, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in general topic`);
     };
@@ -114,6 +118,22 @@
             handleIncomingMessages,
             { durable: false, exclusive: false }
         );
+
+        client.subscribe(
+            endpoints.randomGameRoomsTopic + '.*',
+            handleIncomingMessages
+        );
+
+        client.subscribe(
+            endpoints.customGameRoomsTopic + '.*',
+            handleIncomingMessages
+        );
+
+        client.subscribe(
+            endpoints.royaleGameRoomsTopic + '.*',
+            handleIncomingMessages
+        );
+
         utilities.printLog(true, 'Waiting for messages...');
     };
 
@@ -132,35 +152,53 @@
             return;
         }
 
+        if (lastMsgId === undefined || lastMsgId !== message.msgId) {
+            lastMsgId = message.msgId;
+
+        } else if (lastMsgId === message.msgId) {
+            console.log("Received duplicate message. Ignored.");
+            return;
+        }
+
         switch (message.msgType) {
-            case messageTypes.connectedSignal:
+            case messageTypes.c_connectedSignal:
                 if (onMessageCallbacks.onConnectedSignal !== undefined)
                     onMessageCallbacks.onConnectedSignal(message);
                 break;
 
-            case messageTypes.gameRequest:
+            case messageTypes.c_gameRequest:
                 if (onMessageCallbacks.onGameRequest !== undefined)
                     onMessageCallbacks.onGameRequest(message);
                 break;
 
-            case messageTypes.quitGame:
-                if (onMessageCallbacks.onQuitGame !== undefined)
-                    onMessageCallbacks.onQuitGame(message);
+            case messageTypes.c_validation:
+                if (onMessageCallbacks.onValidation !== undefined)
+                    onMessageCallbacks.onValidation(message);
                 break;
 
-            case messageTypes.heartbeat:
+            case messageTypes.c_playerQuit:
+                if (onMessageCallbacks.onPlayerQuit !== undefined)
+                    onMessageCallbacks.onPlayerQuit(message);
+                break;
+
+            case messageTypes.c_heartbeat:
                 if (onMessageCallbacks.onHeartbeat !== undefined)
                     onMessageCallbacks.onHeartbeat(message);
                 break;
 
-            case messageTypes.tilesRequest:
-                if (onMessageCallbacks.onTilesRequest !== undefined)
-                    onMessageCallbacks.onTilesRequest(message);
+            case messageTypes.c_ready:
+                if (onMessageCallbacks.onReady !== undefined)
+                    onMessageCallbacks.onReady(message);
                 break;
 
-            default:
-                if (onMessageCallbacks.onInvalidMessage !== undefined)
-                    onMessageCallbacks.onInvalidMessage(message);
+            case messageTypes.c_positioned:
+                if (onMessageCallbacks.onPositioned !== undefined)
+                    onMessageCallbacks.onPositioned(message);
+                break;
+
+            case messageTypes.c_endAnimation:
+                if (onMessageCallbacks.onEndAnimation !== undefined)
+                    onMessageCallbacks.onEndAnimation(message);
                 break;
         }
     };

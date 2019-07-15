@@ -50,131 +50,110 @@ rabbit.connect({
         utilities.printLog(true, 'Waiting for messages...');
 
     }, onGameRequest: function (message) {
-        // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms
-        // e comunica al client playerId e gameRoom assegnatigli
+        // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms;
+        // e comunica al client playerId e gameRoom assegnatigli; riferisce agli altri client
+        // dell'arrivo del nuovo giocatore, se il messaggio comprende opzioni di validazione
         utilities.printLog(false, 'Received ' + message.gameType + ' gameRequest from client');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        let playerData = gameRoomHandler.addUserToGameRoom({
-            fromInvitation: message.code !== '0000',
-            invitationCode: message.code,
-            dateValue: message.date,
-            timerSetting: message.timerSetting,
-            maxPlayersSetting: message.maxPlayersSetting,
-            gameName: message.gameName
-        });
-        let responseMessage;
-        if (playerData !== undefined) {
-            responseMessage = {
-                msgType: messageTypes.gameResponse,
-                gameRoomId: playerData.gameRoomId,
-                playerId: playerData.playerId,
-                code: playerData.code,
-                gameType: message.gameType,
-                maxPlayersSetting: playerData.maxPlayersSetting,
-                gameName: playerData.gameName,
-                timerSetting: playerData.timerSetting,
-                date: playerData.date,
-                state: playerData.state
-            };
+        let result = gameRoomHandler.handleGameRequest(message);
+        sendMessages(result.messages);
 
-            // success
+        if (result.success) {
             utilities.printLog(false, 'Client successfully added to ' + message.gameType + ' gameRooms ' +
-                'array. User params: ' + playerData.gameRoomId + '[' + playerData.playerId + ']');
+                'array. User params: ' + result.gameRoomId + '[' + result.playerId + ']');
             gameRoomHandler.printGameRooms();
-
         } else {
-            // failed to add
             utilities.printLog(false, 'The request is not valid anymore.');
-            responseMessage = {
-                msgType: messageTypes.gameResponse,
-                code: '0000',
-                gameType: message.gameType
-            };
         }
-        rabbit.sendInClientControlQueue(message.correlationId, responseMessage);
         utilities.printLog(true, 'Waiting for messages...');
 
-    }, onQuitGame: function (message) {
-        utilities.printLog(false, 'Received quitGame request from ' + message.gameType + ' client ' +
+    }, onValidation: function(message) {
+        // messaggio di validazione del player: fornisce tutti i dati che permettono di validare il giocatore (solo il
+        // nickname, al momento) e comunica agli altri giocatori collegati dell'arrivo del nuovo giocatore.
+        // che verranno quindi inoltrati agli altri client
+        utilities.printLog(false, 'Received ' + message.gameType + ' validation request from client' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        let forceRemove = false;
-        if (gameRoomHandler.isPlayerDataValid(message.gameRoomId, message.playerId)) {
-            forceRemove = gameRoomHandler.removeUserFromGameRoom(message.gameRoomId, message.playerId);
+        let result = gameRoomHandler.handleValidation(message);
+        sendMessages(result.messages);
+
+    }, onPlayerQuit: function (message) {
+        // un giocatore avvisa di voler lasciare la partita. Rimuove il giocatore dall'array, e invia un
+        // avviso nella game room. Se necessario, invia un comando per forzare l'abbandono del gioco da parte dei
+        // giocatori rimasti
+        utilities.printLog(false, 'Received playerQuit request from ' + message.gameType + ' client ' +
+            + message.gameRoomId + '[' + message.playerId + ']');
+
+        let gameRoomHandler = getGameRoomHandler(message.gameType);
+        let result = gameRoomHandler.handlePlayerQuit(message);
+        sendMessages(result.messages);
+
+        if (result.success) {
             utilities.printLog(false, 'User removed from ' + message.gameType + ' game rooms array');
             gameRoomHandler.printGameRooms();
-
         } else {
-            utilities.printLog(false, 'The user is not present in the game room [' + message.playerId + ']');
+            utilities.printLog(false, 'WARNING: The user is not present in the game room ' +
+                '[' + message.gameRoomId + ']');
         }
-
-        if (forceRemove) {
-            rabbit.sendInGameRoomTopic({
-                msgType: messageTypes.quitGame,
-                gameRoomId: message.gameRoomId,
-                playerId: 'server',
-                gameType: message.gameType
-            });
-        }
-
         utilities.printLog(true, 'Waiting for messages...');
 
     }, onHeartbeat: function (message) {
-        // ricevuto un heartbeat dal client. Se il server non riceve heartBeat da un client per più
+        // ricevuto un heartbeat dal client. Se il server non riceve heartbeat da un client per più
         // di 10 secondi, lo rimuove dal gioco e notifica la game room
+
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        if (gameRoomHandler.isPlayerDataValid(message.gameRoomId, message.playerId)) {
-            gameRoomHandler.updateHeartBeat(message.gameRoomId, message.playerId);
+        let result = gameRoomHandler.handleHeartbeat(message);
+        // messaggio di force quit, in caso di heartbeat invalido
+        sendMessages(result.messages);
 
-        } else {
-            // heartbeat invalido: forza la disconnessione di tutti gli utenti della game room
+        if (!result.success) {
             utilities.printLog(false, 'Received invalid heartbeat');
-            let responseMessage = {
-                msgType: messageTypes.quitGame,
-                gameRoomId: message.gameRoomId,
-                playerId: 'server',
-                gameType: message.gameType
-            };
-
-            rabbit.sendInGameRoomTopic(responseMessage);
             utilities.printLog(true, 'Waiting for messages...');
         }
 
-    }, onTilesRequest: function (message) {
-        // un client ha richiesto una nuova disposizione di tiles per la propria gameRoom
-        utilities.printLog(false, 'Received tiles request from ' + message.gameType +
-            ' game room ' + message.gameRoomId);
+    }, onReady: function(message) {
+        // il segnale di Ready è utilizzato in varie modalità per stabilire se è il momento di iniziare la partita.
+        // eventualmente, viene inviato il messaggio di startMatch
+        utilities.printLog(false, 'Received ready message from ' + message.gameType + ' client ' +
+            + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
-        let requestValid = gameRoomHandler.startMatch(message.gameRoomId);
+        let result = gameRoomHandler.handleReadyMessage(message);
+        sendMessages(result.messages);
 
-        if(requestValid !== undefined && requestValid === false) {
-            rabbit.sendInGameRoomTopic({
-                msgType: messageTypes.quitGame,
-                gameRoomId: message.gameRoomId,
-                playerId: 'server',
-                gameType: message.gameType
-            });
-            utilities.printLog(false, "Invalid tiles request.")
-        } else {
-            rabbit.sendInGameRoomTopic({
-                msgType: messageTypes.tilesResponse,
-                gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
-                playerId: 'server',
-                tiles: generateTiles()
-            });
+        if(result.success) {
             options.addTotalMatches();
             utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
         }
 
         utilities.printLog(true, 'Waiting for messages...');
 
-    }, onInvalidMessage: function (message) {
-        utilities.printLog(false, 'Received invalid message; ignored. ' + message);
+    }, onPositioned: function(message) {
+        // il segnale di Positioned permette di stabilire se il giocatore ha posizionato il proprio roby. Se necessario,
+        // invia il messaggio di startAnimation
+        utilities.printLog(false, 'Received positioned message from ' + message.gameType + ' client ' +
+            + message.gameRoomId + '[' + message.playerId + ']');
+
+        let gameRoomHandler = getGameRoomHandler(message.gameType);
+        let result = gameRoomHandler.handlePositionedMessage(message);
+        sendMessages(result.messages);
+
         utilities.printLog(true, 'Waiting for messages...');
+
+    }, onEndAnimation: function(message) {
+        // il segnale di EndAnimation segnala che il giocatore ha concluso l'animazione finale, o ha premuto il segnale
+        // di skip. Una volta ricevuto da tutti, invia il segnale di endMatch
+        utilities.printLog(false, 'Received endAnimation message from ' + message.gameType + ' client ' +
+            + message.gameRoomId + '[' + message.playerId + ']');
+
+        let gameRoomHandler = getGameRoomHandler(message.gameType);
+        let result = gameRoomHandler.handleEndAnimationMessage(message);
+        sendMessages(result.messages);
+
+        utilities.printLog(true, 'Waiting for messages...');
+
     }
 });
 
@@ -202,14 +181,8 @@ royaleGameRooms.setCallbacks(function () {
 }, function (gameRoomId) {
     utilities.printLog(false, "Start timer of royale game room expired");
 
-    rabbit.sendInGameRoomTopic({
-        msgType: messageTypes.tilesResponse,
-        gameRoomId: gameRoomId,
-        gameType: gameTypes.royale,
-        playerId: 'server',
-        tiles: generateTiles()
-    });
-    royaleGameRooms.startMatch(gameRoomId);
+    let result = royaleGameRooms.directStartMatch(gameRoomId);
+    sendMessages(result.messages);
 
     options.addTotalMatches();
     utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
@@ -217,53 +190,37 @@ royaleGameRooms.setCallbacks(function () {
 });
 
 
-let onHeartbeatExpired = function (gameRoomId, playerId, gameType) {
-    utilities.printLog(false, 'Heartbeat timer of ' + gameRoomId + '[' + playerId + '] in '
-        + gameType + ' game rooms expired');
-
-    let gameRoomHandler = getGameRoomHandler(gameType);
-    let forceRemove = gameRoomHandler.removeUserFromGameRoom(gameRoomId, playerId);
-    utilities.printLog(false, 'User removed from ' + gameType + ' gameRooms array');
-
-    // invia una notifica alla gameRoom, rendendo partecipi i giocatori
-    // che un giocatore è stato disconnesso
-    if (forceRemove) {
-        rabbit.sendInGameRoomTopic({
-            msgType: messageTypes.quitGame,
-            gameRoomId: gameRoomId,
-            playerId: 'server',
-            gameType:gameType
-        });
-    } else {
-        rabbit.sendInGameRoomTopic({
-            msgType: messageTypes.quitGame,
-            'gameRoomId': gameRoomId,
-            'playerId': playerId,
-            'gameType': gameType
-        });
+let sendMessages = function(messages) {
+    for (let i = 0; i < messages.length; i++) {
+        if (messages[i].correlationId === undefined)
+            rabbit.sendInGameRoomTopic(messages[i]);
+        else
+            rabbit.sendInClientControlQueue(messages[i].correlationId, messages[i]);
     }
-
-    gameRoomHandler.printGameRooms();
-    utilities.printLog(true, 'Waiting for messages...');
 };
 
 
-let generateTiles = function() {
-    let tiles = '';
-    for (let i = 0; i < 25; i++) {
-        switch (Math.floor(Math.random() * 3)) {
-            case 0:
-                tiles += 'R';
-                break;
-            case 1:
-                tiles += 'Y';
-                break;
-            case 2:
-                tiles += 'G';
-                break;
-        }
+let onHeartbeatExpired = function (gameRoomIdValue, playerIdValue, gameTypeValue) {
+    utilities.printLog(false, 'Heartbeat timer of ' + gameRoomIdValue + '[' + playerIdValue + '] in '
+        + gameTypeValue + ' game rooms expired');
+
+    let gameRoomHandler = getGameRoomHandler(gameTypeValue);
+    let result = gameRoomHandler.handlePlayerQuit({
+        gameRoomId: gameRoomIdValue,
+        playerId: playerIdValue,
+        gameType: gameTypeValue
+    });
+
+    sendMessages(result.messages);
+
+    if (result.success) {
+        utilities.printLog(false, 'User removed from ' + gameTypeValue + ' game rooms array');
+        gameRoomHandler.printGameRooms();
+    } else {
+        utilities.printLog(false, 'WARNING: The user is not present in the game room ' +
+            '[' + gameRoomIdValue + ']');
     }
-    return tiles;
+    utilities.printLog(true, 'Waiting for messages...');
 };
 
 
@@ -296,11 +253,11 @@ let updateSessionOptions = function () {
 
 let sendGeneralInfoMessage = function (correlationId) {
     let message = {
-        'msgType': messageTypes.generalInfo,
-        'totalMatches': options.getTotalMatches(),
-        'connectedPlayers': options.getConnectedPlayers(),
-        'randomWaitingPlayers': options.getRandomWaitingPlayers(),
-        'requiredClientVersion':utilities.requiredClientVersion
+        msgType: messageTypes.s_generalInfo,
+        totalMatches: options.getTotalMatches(),
+        connectedPlayers: options.getConnectedPlayers(),
+        randomWaitingPlayers: options.getRandomWaitingPlayers(),
+        requiredClientVersion: utilities.requiredClientVersion
     };
 
     if (correlationId === undefined) {
