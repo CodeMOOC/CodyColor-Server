@@ -17,21 +17,15 @@ services:
     networks:
     - web
     - backend
-    env_file: ../config.env
+    env_file: ./config.env
     expose:
     - "15674"
-    labels:
-    - "traefik.enable=true"
-    - "traefik.docker.network=web"
-    - "traefik.protocol=http"
-    - "traefik.port=15674"
-    - "traefik.frontend.entryPoints=https"
 
   server:
-    build: ../src/codycolor-server
+    build: ./src/codycolor-server
     networks:
     - backend
-    env_file: ../config.env
+    env_file: ./config.env
     depends_on:
     - rabbit
     - database
@@ -42,14 +36,14 @@ services:
     image: mysql:5.7
     networks:
     - backend
-    env_file: ../config.env
+    env_file: ./config.env
     volumes:
     - codycolor-database:/var/lib/mysql:rw
 
   database-client:
-    build: ../src/database-client
+    build: ./src/database-client
     depends_on:
     - database
     networks:
     - backend
-    env_file: ../config.env
+    env_file: ./config.env

@@ -3,7 +3,7 @@
 [CodyColor Multiplayer](https://codycolor.codemooc.net/#!/) is an educational game developed by Digit S.r.l., inspired by the unplugged coding method **CodyColor**. Additional information about the game can be found in the [Digit blog](https://digit.srl/codycolor-multiplayer-learn-by-having-fun/). The software infrastructure on which the game is based is based on two main components:
 
 * the **back-end**, composed by a message broker and a NodeJS executable; all the back-end code is contained and handled in a Docker infrastructure;
-* the **font-end**, composed by [a web app](https://github.com/digit-srl/CodyColorClient) developed on the AngularJS framework.
+* the **front-end**, composed by [a web app](https://github.com/digit-srl/CodyColorClient) developed on the AngularJS framework.
 
 ![CodyColor Multiplayer Component Diagram](docs/CodyColorComponents.png)
 

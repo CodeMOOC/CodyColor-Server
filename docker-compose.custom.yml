@@ -1,11 +1,9 @@
-# Production-specific config
+# Custom deployment settings
 version: '3'
 
 services:
   rabbit:
     restart: unless-stopped
-    labels:
-    - "traefik.frontend.rule=Host:botify.it;PathPrefixStrip:/codycolor"
 
   server:
     restart: unless-stopped
