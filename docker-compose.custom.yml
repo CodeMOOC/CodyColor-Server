@@ -1,12 +1,22 @@
 # Custom deployment settings
 version: '3'
 
+volumes:
+  codycolor-data:
+    external: true
+  codycolor-database:
+    external: true
+
 services:
   rabbit:
     restart: unless-stopped
 
   server:
+    volumes:
+    - codycolor-data:/data:rw
     restart: unless-stopped
 
   database:
+    volumes:
+    - codycolor-database:/var/lib/mysql:rw
     restart: unless-stopped

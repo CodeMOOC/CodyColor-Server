@@ -1,11 +1,5 @@
 version: '3'
 
-volumes:
-  codycolor-data:
-    external: true
-  codycolor-database:
-    external: true
-
 networks:
   web:
     external: true
@@ -29,16 +23,12 @@ services:
     depends_on:
     - rabbit
     - database
-    volumes:
-    - codycolor-data:/data:rw
 
   database:
     image: mysql:5.7
     networks:
     - backend
     env_file: ./config.env
-    volumes:
-    - codycolor-database:/var/lib/mysql:rw
 
   database-client:
     build: ./src/database-client
