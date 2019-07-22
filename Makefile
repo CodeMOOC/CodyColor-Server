@@ -57,3 +57,7 @@ stop:
 .PHONY: rm
 rm:
 	${DC} rm -fs
+
+.PHONY: logs
+logs:
+	docker logs -f $(shell ${DC} ps -q server)
