@@ -45,6 +45,10 @@ mysql:
 mysqlclient:
 	${DC_RUN} database-client /app/client.sh
 
+.PHONY: install
+install:
+	${DC_RUN} database-client mysql -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} < src/database-client/create.sql
+
 .PHONY: dump
 dump:
 	${DC_RUN} database-client mysqldump -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} > dump.sql
