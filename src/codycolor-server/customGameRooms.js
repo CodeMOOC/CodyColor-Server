@@ -10,9 +10,11 @@
 
 
     // inizializza i callbacks utilizzati dal modulo
-    module.exports.setCallbacks = function(onGameRoomsUpdated, onHeartbeatExpired) {
+    module.exports.setCallbacks = function(onGameRoomsUpdated, onHeartbeatExpired, createDbGameSession, createDbGameMatch) {
         callbacks.onGameRoomsUpdated = onGameRoomsUpdated;
         callbacks.onHeartbeatExpired = onHeartbeatExpired;
+        callbacks.createDbGameSession = createDbGameSession;
+        callbacks.createDbGameMatch = createDbGameMatch;
     };
 
 
@@ -85,7 +87,7 @@
 
         // inserisci il giocatore nella game room
         customGameRooms[result.gameRoomId].players[result.playerId]
-            = generateOccupiedSlot(result.gameRoomId, result.playerId);
+            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId);
 
         // valida giocatore, se possibile
         if (message.nickname !== undefined && message.nickname !== "Anonymous") {
@@ -273,7 +275,9 @@
                 tiles: customGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
-            // todo avvia cronometro di sincronizzazione?
+
+            if (customGameRooms[message.gameRoomId].gameData.matchCount === 0)
+                callbacks.createDbGameSession(customGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -319,6 +323,7 @@
 
         if (message.winner) {
             customGameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
+            customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
         }
         result.success = endMatchCheck(message.gameRoomId);
 
@@ -332,6 +337,8 @@
                 gameType: utilities.gameTypes.custom,
                 gameData: getGameRoomData(message.gameRoomId)
             });
+
+            callbacks.createDbGameMatch(customGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -373,6 +380,7 @@
     let generateGameRoom = function (gameRoomId, state) {
         return {
             players: [generateFreeSlot(), generateFreeSlot()],
+            sessionId: undefined,
             gameData: generateGeneralGameData(gameRoomId, state)
         };
     };
@@ -387,9 +395,10 @@
     };
 
 
-    let generateOccupiedSlot = function (gameRoomId, playerId) {
+    let generateOccupiedSlot = function (gameRoomId, playerId, userId) {
         return {
             occupiedSlot: true,
+            userId: userId,
             heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId),
             gameData: generatePlayerGameData(gameRoomId, playerId)
         };
@@ -501,6 +510,7 @@
             time: -1,
             points: 0,
             pathLength: 0,
+            winner: true,
             animationEnded: false,
             positioned: false,
             startPosition: {
@@ -531,7 +541,7 @@
             matchCount: 0,
             tiles: undefined,
             state: (state !== undefined) ? state : gameRoomStates.free,
-            timerSetting: 30,
+            timerSetting: 30000,
             gameType: utilities.gameTypes.custom,
             code: generateUniqueCode()
         }

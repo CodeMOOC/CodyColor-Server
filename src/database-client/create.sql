@@ -24,20 +24,21 @@ CREATE TABLE IF NOT EXISTS `CodyColor`.`GameSessions` (
    `Id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
    `NumMatches` TINYINT UNSIGNED NOT NULL,
    `Type` CHAR(16),
-   `DurationMs` MEDIUMINT UNSIGNED DEFAULT 30000,
+   `BeginTimestamp` DATETIME NOT NULL,
+   `MatchDurationMs` MEDIUMINT UNSIGNED DEFAULT 30000,
 
    PRIMARY KEY (`Id`)
 )
 ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `CodyColor`.`GameMatches` (
+   `Id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
    `SessionId` INT UNSIGNED NOT NULL,
-   `MatchId` CHAR(36) NOT NULL COLLATE latin1_general_ci,
    `BeginTimestamp` DATETIME NOT NULL,
    `NumUsers` TINYINT UNSIGNED DEFAULT 2,
 
-   PRIMARY KEY (`SessionId`, `MatchId`),
-   UNIQUE INDEX `MatchId_idx` (`MatchId` ASC),
+   PRIMARY KEY (`Id`),
+   UNIQUE INDEX `MatchId_idx` (`Id` ASC),
    INDEX `SessionId_idx` (`SessionId` ASC),
    CONSTRAINT `fk_GameMatches_SessionId`
      FOREIGN KEY `SessionId_idx` (`SessionId`)
@@ -49,8 +50,9 @@ ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `CodyColor`.`MatchParticipants` (
    `SessionId` INT UNSIGNED NOT NULL,
-   `MatchId` CHAR(36) NOT NULL COLLATE latin1_general_ci,
+   `MatchId` INT UNSIGNED NOT NULL,
    `UserId` VARBINARY(64) NOT NULL,
+   `Registered` BIT(1) DEFAULT 0,
    `BeginTimestamp` DATETIME NOT NULL,
    `Score` TINYINT UNSIGNED NOT NULL,
    `PathLength` SMALLINT UNSIGNED NOT NULL,
@@ -67,7 +69,7 @@ CREATE TABLE IF NOT EXISTS `CodyColor`.`MatchParticipants` (
    INDEX `MatchId_idx` (`MatchId` ASC),
    CONSTRAINT `fk_MatchParticipants_MatchId`
      FOREIGN KEY `MatchId_idx` (`MatchId`)
-     REFERENCES `CodyColor`.`GameMatches` (`MatchId`)
+     REFERENCES `CodyColor`.`GameMatches` (`Id`)
      ON DELETE RESTRICT
      ON UPDATE RESTRICT,
    INDEX `Score_idx` (`Score` DESC),

@@ -9,10 +9,13 @@
     const gameRoomStates = utilities.gameRoomStates;
 
 
-    module.exports.setCallbacks = function (onGameRoomsUpdated, onHeartbeatExpired, onStartTimerExpired) {
+    module.exports.setCallbacks = function (onGameRoomsUpdated, onHeartbeatExpired, onStartTimerExpired, createDbGameSession, createDbGameMatch) {
         callbacks.onGameRoomsUpdated = onGameRoomsUpdated;
         callbacks.onHeartbeatExpired = onHeartbeatExpired;
         callbacks.onStartTimerExpired = onStartTimerExpired;
+        callbacks.createDbGameSession = createDbGameSession;
+        callbacks.createDbGameMatch = createDbGameMatch;
+
     };
 
 
@@ -82,7 +85,7 @@
 
         // inserisci il giocatore nella game room
         royaleGameRooms[result.gameRoomId].players[result.playerId]
-            = generateOccupiedSlot(result.gameRoomId, result.playerId);
+            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId);
 
 
         // imposta vari game data
@@ -268,6 +271,9 @@
                 gameData: getGameRoomData(gameRoomId)
             });
 
+            if (royaleGameRooms[message.gameRoomId].gameData.matchCount === 0)
+                callbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
+
         } else {
             clearGameRoom(gameRoomId);
             result.messages.push({
@@ -413,7 +419,9 @@
                 tiles: royaleGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
-            // todo avvia cronometro di sincronizzazione?
+
+            if (royaleGameRooms[message.gameRoomId].gameData.matchCount === 0)
+                callbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
 
         } else if (result.success && countValidPlayers(message.gameRoomId) <= 1) {
             // non ci sono abbastanza giocatori, ma è ora di iniziare il match: esci
@@ -467,6 +475,7 @@
 
         if (message.winner) {
             royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
+            royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
         }
         result.success = endMatchCheck(message.gameRoomId);
 
@@ -480,6 +489,8 @@
                 gameType: utilities.gameTypes.royale,
                 gameData: getGameRoomData(message.gameRoomId)
             });
+
+            callbacks.createDbGameMatch(royaleGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -533,6 +544,7 @@
     let generateGameRoom = function (gameRoomId, state) {
         return {
             players: [generateFreeSlot()],
+            sessionId: undefined,
             gameData: generateGeneralGameData(gameRoomId, state)
         };
     };
@@ -547,9 +559,10 @@
     };
 
 
-    let generateOccupiedSlot = function (gameRoomId, playerId) {
+    let generateOccupiedSlot = function (gameRoomId, playerId, userId) {
         return {
             occupiedSlot: true,
+            userId: userId,
             heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId),
             gameData: generatePlayerGameData(gameRoomId, playerId)
         };
@@ -669,6 +682,7 @@
             time: -1,
             points: 0,
             pathLength: 0,
+            winner: false,
             animationEnded: false,
             positioned: false,
             startPosition: {
@@ -699,7 +713,7 @@
             matchCount: 0,
             gameName: "RoyaleMatch",
             tiles: undefined,
-            timerSetting: 30,
+            timerSetting: 30000,
             startDate: undefined,
             maxPlayersSetting: 20,
             state: (state !== undefined) ? state : gameRoomStates.free,

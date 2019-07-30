@@ -18,7 +18,7 @@
     };
 
 
-    module.exports.requiredClientVersion  = '2.1.0';
+    module.exports.requiredClientVersion  = '3.0.0';
 
 
     module.exports.gameTypes = {
@@ -61,6 +61,16 @@
 
         c_heartbeat:      "c_heartbeat",      // segnale heartbeat
         c_chat:           "c_chat",           // chat, intercettati SOLO dai client
+
+        c_signUpRequest:  "c_signUpRequest",  // aggiunge l'utente al db con nickname
+        c_logInRequest:   "c_logInRequest",  // richiedi nickname utente con uid
+        s_authResponse:   "s_authResponse",  // fornisci il nickname utente - o messaggio error
+
+        c_userDeleteRequest:   "c_userDeleteRequest",   // richiedi l'eliminazione di un utente
+        s_userDeleteResponse:  "s_userDeleteResponse",  // conferma l'eliminazione di un utente
+
+        c_rankingsRequest: "c_rankingsRequest",   // richiedi le classifiche
+        s_rankingsResponse: "s_rankingsResponse", // restituisci le classifiche
     };
 
 
@@ -86,7 +96,8 @@
     // funzione che imita il jQuery $.extend, utilizzato in questo programma per
     // effettuare deep copy in un oggetto. Fonte:
     // https://stackoverflow.com/questions/9399365/deep-extend-like-jquerys-for-nodejs
-    module.exports.extend = function() {
+    // todo deprecato nelle prossime versioni del server
+    /*module.exports.extend = function() {
         var options, name, src, copy, copyIsArray, clone, target = arguments[0] || {},
         i = 1,
         length = arguments.length,
@@ -176,5 +187,5 @@
         }
     }
     return target;
-    };
+    };*/
 }());

@@ -73,14 +73,14 @@
     // invia un messaggio alla queue di controllo diretta del client
     module.exports.sendInClientControlQueue = function(correlationId, message) {
         // aggiunge un id univoco al messaggio
-        utilities.extend(true, message, { msgId: (Math.floor(Math.random() * 100000)).toString() });
+        message.msgId = (Math.floor(Math.random() * 100000)).toString();
         client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in client queue`);
     };
 
 
     module.exports.sendInGeneralTopic = function(message) {
-        utilities.extend(true, message, { msgId: (Math.floor(Math.random() * 100000)).toString() });
+        message.msgId = (Math.floor(Math.random() * 100000)).toString();
         client.send(endpoints.generalTopic, {}, JSON.stringify(message));
         utilities.printLog(false, `Sent ${message.msgType} in general topic`);
     };
@@ -199,6 +199,24 @@
             case messageTypes.c_endAnimation:
                 if (onMessageCallbacks.onEndAnimation !== undefined)
                     onMessageCallbacks.onEndAnimation(message);
+                break;
+
+            case messageTypes.c_signUpRequest:
+                if (onMessageCallbacks.onSignUpRequest !== undefined)
+                    onMessageCallbacks.onSignUpRequest(message);
+                break;
+
+            case messageTypes.c_logInRequest:
+                if (onMessageCallbacks.onLogInRequest !== undefined)
+                    onMessageCallbacks.onLogInRequest(message);
+                break;
+            case messageTypes.c_userDeleteRequest:
+                if (onMessageCallbacks.onUserDeleteRequest !== undefined)
+                    onMessageCallbacks.onUserDeleteRequest(message);
+                break;
+            case messageTypes.c_rankingsRequest:
+                if (onMessageCallbacks.onRankingRequest !== undefined)
+                    onMessageCallbacks.onRankingRequest(message);
                 break;
         }
     };
