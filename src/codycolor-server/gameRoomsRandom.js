@@ -1,25 +1,46 @@
 /*
- * randomGameRooms.js: file per la gestione dell'array gameRoom ad accoppiamento casuale dei giocatori. Espone metodi
- * per l'aggiunta e la rimozione dei giocatori, oltre a metodi per recuperare informazioni sullo stato delle game room.
+ * gameRoomsRandom.js: file per la gestione dell'array gameRoom ad accoppiamento random
  */
 (function () {
-    let utilities = require("./utilities");
-    let database = require("./databaseCommunicator");
+    let rabbit = require("./rabbit");
+    let utils = require("./utils");
+    let gameRoomsUtils = require("./gameRoomsUtils");
     let randomGameRooms = [];
     let callbacks = {};
-    const gameRoomStates = utilities.gameRoomStates;
 
 
-    // inizializza i callbacks utilizzati dal modulo
-    module.exports.setCallbacks = function (onGameRoomsUpdated, onHeartbeatExpired, createDbGameSession, createDbGameMatch) {
-        callbacks.onGameRoomsUpdated = onGameRoomsUpdated;
-        callbacks.onHeartbeatExpired = onHeartbeatExpired;
-        callbacks.createDbGameSession = createDbGameSession;
-        callbacks.createDbGameMatch = createDbGameMatch;
+    /* -------------------------------------------------------------------------------------------- *
+    * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
+    * gameRoom dall'esterno del modulo.
+    * -------------------------------------------------------------------------------------------- */
+
+    // stampa a console lo stato attuale delle game room
+    module.exports.printGameRooms = function() {
+        utils.printLog('New random game room configuration:');
+
+        if (randomGameRooms.length <= 0) {
+            utils.printLog('empty');
+
+        } else {
+            let gameRoomString = '';
+            for (let gameRoomIndex = 0; gameRoomIndex < randomGameRooms.length; gameRoomIndex++) {
+                gameRoomString += gameRoomIndex.toString() + '[';
+                for (let playerIndex = 0; playerIndex < randomGameRooms[gameRoomIndex].players.length; playerIndex++) {
+                    gameRoomString += (randomGameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
+                }
+                gameRoomString += '] ';
+                if ((gameRoomIndex + 1) % 4 === 0) {
+                    utils.printLog(gameRoomString);
+                    gameRoomString = '';
+                }
+            }
+            if (gameRoomString !== '')
+                utils.printLog(gameRoomString);
+        }
     };
 
 
-    // fornisce il conteggio complessivo dei giocatori attivi sulle game room ad accoppiamento casuale
+    // restituisce il numero di giocatori validati presenti
     module.exports.getConnectedPlayers = function () {
         let connectedPlayers = 0;
         for (let i = 0; i < randomGameRooms.length; i++) {
@@ -42,33 +63,23 @@
     };
 
 
-    // stampa a console le gameRoom attive ad accoppiamento personalizzato
-    module.exports.printGameRooms = function () {
-        utilities.printLog(false, 'New random game room configuration:');
-
-        if (randomGameRooms.length <= 0) {
-            utilities.printLog(false, 'empty');
-
-        } else {
-            let gameRoomString = '';
-            for (let i = 0; i < randomGameRooms.length; i++) {
-                let firstSlot = (randomGameRooms[i].players[0].occupiedSlot ? 'x' : 'o');
-                let secondSlot = (randomGameRooms[i].players[1].occupiedSlot ? 'x' : 'o');
-                gameRoomString += i.toString() + '[' + firstSlot + '' + secondSlot + '] ';
-                if (i % 4 === 0 && i !== 0) {
-                    utilities.printLog(false, gameRoomString);
-                    gameRoomString = '';
-                }
-            }
-            if (gameRoomString !== '')
-                utilities.printLog(false, gameRoomString);
-        }
+    // inizializza callback utilizzati dal modulo
+    module.exports.setCallbacks = function (newCallbacks) {
+        callbacks = newCallbacks;
     };
 
 
-    // aggiunge un riferimento all'utente nel primo slot valido.
-    // Ritorna un oggetto contenente gameRoom e playerId assegnati al richiedente.
-    // L'eventuale callback passato viene eseguito non appena le gameRoom vengono aggiornate
+    /* -------------------------------------------------------------------------------------------- *
+     * HANDLE METHODS: metodi che permettono di reagire all'arrivo di determinati messaggi. Si
+     * compongono di una struttura comune:
+     *  - Un oggetto 'result' di appoggio viene creato all'inizio della funzione. Questo raccoglie
+     *    dati che verranno utilizzati per la generazione dell'output finale della stessa;
+     *  - Viene modificato il contenuto dell'array gameRooms, a seconda dello scopo della funzione;
+     *  - Ogni funzione di handle restituisce infine l'oggetto result, comprensivo di un array di
+     *    messaggi, poi inviati tramite Rabbit ai rispettivi destinatari.
+     * -------------------------------------------------------------------------------------------- */
+
+    // aggiunge un riferimento all'utente nel primo slot valido dell'array game room.
     module.exports.handleGameRequest = function (message) {
         let result = {
             success: false,
@@ -76,13 +87,14 @@
             playerId: undefined,
             messages: []
         };
+        // success === true: game room trovata/generata
 
         // dà la precedenza alle gameRoom con giocatori in attesa di avversari
         for (let gRoomIndex = 0; gRoomIndex < randomGameRooms.length; gRoomIndex++) {
             if (randomGameRooms[gRoomIndex].players[0].occupiedSlot &&
                 !randomGameRooms[gRoomIndex].players[1].occupiedSlot) {
                 result.gameRoomId = gRoomIndex;
-                result.playerId = 1
+                result.playerId = 1;
                 result.success = true;
             }
         }
@@ -108,7 +120,7 @@
             result.success = true;
 
             randomGameRooms.push(
-                generateGameRoom(result.gameRoomId, gameRoomStates.mmaking)
+                generateGameRoom(result.gameRoomId, gameRoomsUtils.gameRoomStates.mmaking)
             );
         }
 
@@ -122,6 +134,7 @@
             randomGameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
         }
 
+        // aggiorna gameData
         if (result.gameRoomId !== undefined) {
             randomGameRooms[result.gameRoomId].gameData.gameRoomId = result.gameRoomId;
         }
@@ -135,11 +148,10 @@
         }
 
         // crea i messaggi di risposta
-        callbacks.onGameRoomsUpdated();
         result.success = true;
         result.messages.push({
-            msgType: utilities.messageTypes.s_gameResponse,
-            gameType: utilities.gameTypes.random,
+            msgType: rabbit.messageTypes.s_gameResponse,
+            gameType: message.gameType,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             correlationId: message.correlationId,
@@ -148,17 +160,22 @@
 
         if (randomGameRooms[result.gameRoomId].players[result.playerId].gameData.validated) {
             result.messages.push({
-                msgType: utilities.messageTypes.s_playerAdded,
+                msgType: rabbit.messageTypes.s_playerAdded,
                 gameType: message.gameType,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
                 gameData: getGameRoomData(result.gameRoomId)
             });
         }
+
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
 
+    // valida un giocatore, cioe' setta il nickname di questo a seguito della ricezione di un messaggio
+    // di validazione. Viene quindi notificato che un nuovo giocatore è ora ufficialmente entrato
+    // a far parte della partita.
     module.exports.handleValidation = function (message) {
         let result = {
             success: false,
@@ -170,7 +187,7 @@
         result.success = true;
 
         result.messages.push({
-            msgType: utilities.messageTypes.s_playerAdded,
+            msgType: rabbit.messageTypes.s_playerAdded,
             gameType: message.gameType,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
@@ -181,6 +198,8 @@
     };
 
 
+    // all'arrivo di un messaggio playerQuit da un client, o della scadenza di un heartbeat,
+    // viene rimosso il giocatore dalla gameRoom e notificato l'abbandono agli altri client in ascolto
     module.exports.handlePlayerQuit = function (message) {
         let result = {
             success: false,
@@ -191,7 +210,7 @@
         clearGameRoom(message.gameRoomId);
         result.success = true;
         result.messages.push({
-            msgType: utilities.messageTypes.s_gameQuit,
+            msgType: rabbit.messageTypes.s_gameQuit,
             gameRoomId: message.gameRoomId,
             gameType: message.gameType,
         });
@@ -201,7 +220,9 @@
     };
 
 
-    // aggiorna il timer heartbeat di un giocatore. invocato all'arrivo di un messaggio di heartbeat
+    // All'arrivo di un messaggio di heartbeat da un client, viene resettato il timer corrispondente
+    // nello slot della gameRoom. Se tale timer non viene aggiornato, il giocatore viene rimosso
+    // automaticamente
     module.exports.handleHeartbeat = function (message) {
         let result = {
             success: false,
@@ -211,7 +232,7 @@
         if (!slotExists(message.gameRoomId, message.playerId)) {
             clearGameRoom(message.gameRoomId);
             result.messages.push({
-                msgType: utilities.messageTypes.s_gameQuit,
+                msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
                 gameType: message.gameType
             });
@@ -227,6 +248,9 @@
     };
 
 
+    // un messaggio di ready indica che un client è pronto ad iniziare una nuova partita. Al realizzarsi
+    // di determinati criteri, legati allo stato ready dei client collegati alla game room, viene inviato
+    // il segnale di via libera per l'inizio di un nuovo match
     module.exports.handleReadyMessage = function (message) {
         let result = {
             success: false,
@@ -236,29 +260,35 @@
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
         result.success = startMatchCheck(message.gameRoomId);
 
+        // va avviato un nuovo match
         if (result.success) {
             for (let i = 0; i < randomGameRooms[message.gameRoomId].players.length; i++) {
                 randomGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
                 randomGameRooms[message.gameRoomId].players[i].gameData.ready = false;
             }
-            randomGameRooms[message.gameRoomId].gameData.state = utilities.gameRoomStates.playing;
-            randomGameRooms[message.gameRoomId].gameData.tiles = utilities.generateTiles();
+            randomGameRooms[message.gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.playing;
+            randomGameRooms[message.gameRoomId].gameData.tiles = gameRoomsUtils.generateTiles();
             result.messages.push({
-                msgType: utilities.messageTypes.s_startMatch,
+                msgType: rabbit.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: utilities.gameTypes.random,
+                gameType: message.gameType,
                 tiles: randomGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            if (randomGameRooms[message.gameRoomId].gameData.matchCount === 0)
+            if (randomGameRooms[message.gameRoomId].gameData.matchCount === 0) {
+                // si è al primo match della sessione: salva i dati sessione nel db
                 callbacks.createDbGameSession(randomGameRooms[message.gameRoomId]);
+            }
         }
 
         return result;
     };
 
 
+    // un messaggio positioned indica che, nel corso di un match, il giocatore ha appena posizionato
+    // il proprio Roby. Aggiorna quindi l'oggetto di gioco e notifica il fatto agli avversari. In caso
+    // tutti i Roby siano stati posizionati, avvia l'animazione dei robottini
     module.exports.handlePositionedMessage = function (message) {
         let result = {
             success: false,
@@ -273,9 +303,9 @@
 
         if (result.success) {
             result.messages.push({
-                msgType: utilities.messageTypes.s_startAnimation,
+                msgType: rabbit.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: utilities.gameTypes.random,
+                gameType: message.gameType,
                 gameData: getGameRoomData(message.gameRoomId)
             });
         }
@@ -283,11 +313,15 @@
         return result;
     };
 
+
+    // il messaggio indica che un client ha concluso di mostrare l'animazione dei robottini. Quando tutti
+    // hanno concluso, invia un segnale per concludere il match
     module.exports.handleEndAnimationMessage = function (message) {
         let result = {
-            success: false, // success: termina il match
+            success: false,
             messages: []
         };
+        // success === true: termina il match
 
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
@@ -302,13 +336,13 @@
         result.success = endMatchCheck(message.gameRoomId);
 
         if (result.success) {
-            randomGameRooms[message.gameRoomId].gameData.state = utilities.gameRoomStates.aftermatch;
+            randomGameRooms[message.gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.aftermatch;
             randomGameRooms[message.gameRoomId].gameData.matchCount++;
 
             result.messages.push({
-                msgType: utilities.messageTypes.s_endMatch,
+                msgType: rabbit.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: utilities.gameTypes.random,
+                gameType: message.gameType,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
@@ -319,6 +353,10 @@
     };
 
 
+    /* -------------------------------------------------------------------------------------------- *
+     * UTILITIES: metodi interni di appoggio, utilizzato nei vari Handle Methods.
+     * -------------------------------------------------------------------------------------------- */
+
     let clearGameRoom = function(gameRoomId) {
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         if (gameRoomExists(gameRoomId)) {
@@ -327,12 +365,12 @@
                     clearTimeout(randomGameRooms[gameRoomId].players[j].heartBeatTimer);
             }
 
-            randomGameRooms[gameRoomId] = generateGameRoom(gameRoomId, gameRoomStates.free);
+            randomGameRooms[gameRoomId] = generateGameRoom(gameRoomId, gameRoomsUtils.gameRoomStates.free);
         }
 
         // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
         for (let i = randomGameRooms.length - 1; i >= 0; i--) {
-            if (randomGameRooms[i].gameData.state === gameRoomStates.free)
+            if (randomGameRooms[i].gameData.state === gameRoomsUtils.gameRoomStates.free)
                 randomGameRooms.splice(i, 1);
             else
                 break;
@@ -381,7 +419,7 @@
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
-            callbacks.onHeartbeatExpired(gameRoomId, playerId)
+            callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.random)
         }, 10000);
     };
 
@@ -455,10 +493,10 @@
     };
 
 
-    /* -------------------------------------------------------------------- *
-     * Initializers: metodi per 'pulire' la struttura dati, nel momento
-     * in cui vada resettata
-     * -------------------------------------------------------------------- */
+    /* -------------------------------------------------------------------------------------------- *
+     * INITIALIZERS: metodi interni che restituiscono un oggetto dati di gioco 'pulito', nel
+     * momento in cui sia necessario resettarla.
+     * -------------------------------------------------------------------------------------------- */
 
     let generateEmptyPlayerMatch = function () {
         return {
@@ -495,9 +533,9 @@
             gameRoomId: (gameRoomId !== undefined) ? gameRoomId : -1,
             matchCount: 0,
             tiles: undefined,
-            state: (state !== undefined) ? state : gameRoomStates.free,
+            state: (state !== undefined) ? state : gameRoomsUtils.gameRoomStates.free,
             timerSetting: 30000,
-            gameType: utilities.gameTypes.random
+            gameType: gameRoomsUtils.gameTypes.random
         }
     };
 }());

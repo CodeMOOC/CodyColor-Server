@@ -1,48 +1,41 @@
 #!/usr/bin/env node
 
 /*
- * serverScript.js: script node.Js per la gestione lato server di CodyColor. Tiene traccia dei vari giocatori
- * collegati in multi player, sincronizza le partite e ne memorizza dati persistenti
+ * serverScript.js: punto di accesso dello script. 
+ * Tiene traccia dei vari giocatori collegati in multi player, sincronizza le partite e ne memorizza dati persistenti.
  */
 
-if (process.argv[2] !== '-l') {
+let utils = require('./utils');
+let rabbit = require('./rabbit');
+let database = require('./database');
+let gameRoomsUtils = require('./gameRoomsUtils');
+let randomGameRooms = require('./gameRoomsRandom');
+let customGameRooms = require('./gameRoomsCustom');
+let royaleGameRooms = require('./gameRoomsRoyale');
 
-}
-
-// imports
-let utilities = require('./utilities');
-let options = require('./options');
-let rabbit = require('./rabbitCommunicator');
-let randomGameRooms = require('./randomGameRooms');
-let customGameRooms = require('./customGameRooms');
-let royaleGameRooms = require('./royaleGameRooms');
-let database = require('./databaseCommunicator');
-
-const gameTypes = utilities.gameTypes;
-const messageTypes = utilities.messageTypes;
-
-// inizializzazione
-utilities.printProgramHeader();
+utils.printProgramHeader();
 
 rabbit.connect({
     onConnectedSignal: function (message) {
-        // un client vuole connettersi al sistema (non a una partita). Restituisce al client informazioni
-        // aggiornate sullo stato del sistema
-        utilities.printLog(false, 'A new client connected to the broker');
+        // un client vuole connettersi al sistema (non a una partita). Restituisce 
+        // a questo informazioni aggiornate sullo stato del sistema
+        utils.printLog('A new client connected to the broker');
         sendGeneralInfoMessage(message.correlationId);
-        utilities.printLog(true, 'Waiting for messages...');
 
     }, onSignUpRequest: function(message) {
-        utilities.printLog(false, 'A new user is trying to sign in');
-        let insertUser = "INSERT INTO Users (Id, Email, Nickname, Deleted) " +
-                         "VALUES (" + database.sanitize(message.userId) + ", "
-                                    + database.sanitize(message.email)  + ", "
-                                    + database.sanitize(message.nickname) + ", "
-                                    + "0)";
+        // un client, dopo aver ottenuto l'uid da FirebaseAuth e aver scelto un nickname, vuole registrarsi a
+        // CodyColor. Crea un record utente nel db e restituisci alcune statistiche utente.
+        utils.printLog('A new user is trying to sign in');
+        let insertUser =
+            "INSERT INTO Users (Id, Email, Nickname, Deleted) " +
+            "VALUES (" + database.escape(message.userId)   + ", "
+                       + database.escape(message.email)    + ", "
+                       + database.escape(message.nickname) + ", "
+                       + "0)";
 
         database.query(insertUser, function (results, error) {
             let response = {
-                msgType: utilities.messageTypes.s_authResponse,
+                msgType: rabbit.messageTypes.s_authResponse,
                 success: !error,
                 nickname: message.nickname,
                 totalPoints: 0,
@@ -53,36 +46,40 @@ rabbit.connect({
             };
 
             rabbit.sendInClientControlQueue(message.correlationId, response);
+            utils.printWaiting();
         });
 
     }, onLogInRequest: function(message) {
-        utilities.printLog(false, 'A user is trying to log in');
-        let searchUser = "SELECT Nickname as nickname FROM Users " +
-                         "WHERE Id = " + database.sanitize(message.userId) + "; ";
+        // un client vuole ottenere le informazioni del proprio account memorizzate nel db. Restituiscile
+        // in caso l'userId corrisponda
+        utils.printLog('A user is trying to log in');
+        let searchUser =
+            "SELECT Nickname as nickname FROM Users " +
+            "WHERE Id = " + database.escape(message.userId) + "; ";
 
         let userTotalPoints =
             "SELECT SUM(Score) as totalPoints " +
             "FROM MatchParticipants " +
-            "WHERE UserId = " + database.sanitize(message.userId) + " " +
+            "WHERE UserId = " + database.escape(message.userId) + " " +
             "GROUP BY UserId; ";
 
         let userWins =
             "SELECT SUM(Winner) as wonMatches " +
             "FROM MatchParticipants " +
-            "WHERE UserId = " + database.sanitize(message.userId) + " " +
+            "WHERE UserId = " + database.escape(message.userId) + " " +
             "GROUP BY UserId; ";
 
         let userAvgPoints =
             "SELECT AVG(Score) as avgPoints " +
             "FROM MatchParticipants " +
-            "WHERE UserId = " + database.sanitize(message.userId) + " " +
+            "WHERE UserId = " + database.escape(message.userId) + " " +
             "GROUP BY UserId; ";
 
 
         let bestMatch =
             "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
             "FROM MatchParticipants " +
-            "WHERE UserId = " + database.sanitize(message.userId) + " " +
+            "WHERE UserId = " + database.escape(message.userId) + " " +
             "ORDER BY points DESC, pathLength DESC, time DESC " +
             "LIMIT 1; ";
 
@@ -91,9 +88,8 @@ rabbit.connect({
         database.query(queries, function (results, error) {
             let response;
             if (error) {
-                utilities.printLog(false, "This query generated an error: " + queries);
                 response = {
-                    msgType: utilities.messageTypes.s_authResponse,
+                    msgType: rabbit.messageTypes.s_authResponse,
                     success: false,
                     correlationId: message.correlationId
                 };
@@ -133,7 +129,7 @@ rabbit.connect({
                 }
 
                 response = {
-                    msgType: utilities.messageTypes.s_authResponse,
+                    msgType: rabbit.messageTypes.s_authResponse,
                     success: nicknameValue !== undefined,
                     nickname: nicknameValue,
                     totalPoints: totalPointsValue,
@@ -145,26 +141,31 @@ rabbit.connect({
             }
 
             rabbit.sendInClientControlQueue(message.correlationId, response);
+            utils.printWaiting();
     });
 
 
 
     }, onUserDeleteRequest: function(message) {
-        utilities.printLog(false, 'A user is trying to delete his account');
+        // un utente vuole rimuovere il proprio account. Elimina l'email collegata l'account e imposta
+        // l'utente come eliminato
+        utils.printLog('A user is trying to delete his account');
         let deleteUser = "UPDATE Users SET Email = '', Deleted = 1 "
-                       + "WHERE Id = " + database.sanitize(message.userId);
+                       + "WHERE Id = " + database.escape(message.userId);
 
         database.query(deleteUser, function (results, error) {
             let response = {
-                msgType: utilities.messageTypes.s_userDeleteResponse,
+                msgType: rabbit.messageTypes.s_userDeleteResponse,
                 success: error !== undefined,
                 correlationId: message.correlationId,
             };
             rabbit.sendInClientControlQueue(message.correlationId, response);
+            utils.printWaiting();
         });
 
     }, onRankingRequest: function(message) {
-        utilities.printLog(false, 'Received ranking request');
+        // un client ha richiesto dati relativi alle classifiche. Restituiscili.
+        utils.printLog('Received ranking request');
         let top10PointsDaily =
             "SELECT U.Nickname AS nickname, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
             "FROM Users U INNER JOIN MatchParticipants MP " +
@@ -237,16 +238,15 @@ rabbit.connect({
         database.query(queries, function (results, error) {
             let response = {};
             if (error) {
-                utilities.printLog(false, "This query generated an error: " + queries);
                 response = {
-                    msgType: utilities.messageTypes.s_rankingsResponse,
+                    msgType: rabbit.messageTypes.s_rankingsResponse,
                     success: false,
                     correlationId: message.correlationId,
                 };
 
             } else {
                 response = {
-                    msgType: utilities.messageTypes.s_rankingsResponse,
+                    msgType: rabbit.messageTypes.s_rankingsResponse,
                     'top10PointsDaily': JSON.stringify(results[0]),
                     'top10PointsGlobal': JSON.stringify(results[1]),
                     'top10MatchDaily': JSON.stringify(results[2]),
@@ -256,45 +256,46 @@ rabbit.connect({
                 };
             }
 
-
             rabbit.sendInClientControlQueue(message.correlationId, response);
+            utils.printWaiting();
         });
 
     }, onGameRequest: function (message) {
         // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms;
-        // e comunica al client playerId e gameRoom assegnatigli; riferisce agli altri client
+        // comunica al client playerId e gameRoom assegnatigli; riferisce agli altri client
         // dell'arrivo del nuovo giocatore, se il messaggio comprende opzioni di validazione
-        utilities.printLog(false, 'Received ' + message.gameType + ' gameRequest from client');
+        utils.printLog('Received ' + message.gameType + ' gameRequest from client');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handleGameRequest(message);
         sendMessages(result.messages);
 
         if (result.success) {
-            utilities.printLog(false, 'Client successfully added to ' + message.gameType + ' gameRooms ' +
+            utils.printLog('Client successfully added to ' + message.gameType + ' gameRooms ' +
                 'array. User params: ' + result.gameRoomId + '[' + result.playerId + ']');
             gameRoomHandler.printGameRooms();
         } else {
-            utilities.printLog(false, 'The request is not valid anymore.');
+            utils.printLog('The request is not valid anymore.');
         }
-        utilities.printLog(true, 'Waiting for messages...');
+        utils.printWaiting();
 
     }, onValidation: function(message) {
         // messaggio di validazione del player: fornisce tutti i dati che permettono di validare il giocatore (solo il
         // nickname, al momento) e comunica agli altri giocatori collegati dell'arrivo del nuovo giocatore.
         // che verranno quindi inoltrati agli altri client
-        utilities.printLog(false, 'Received ' + message.gameType + ' validation request from client' +
+        utils.printLog('Received ' + message.gameType + ' validation request from client' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handleValidation(message);
         sendMessages(result.messages);
+        utils.printWaiting();
 
     }, onPlayerQuit: function (message) {
         // un giocatore avvisa di voler lasciare la partita. Rimuove il giocatore dall'array, e invia un
         // avviso nella game room. Se necessario, invia un comando per forzare l'abbandono del gioco da parte dei
         // giocatori rimasti
-        utilities.printLog(false, 'Received playerQuit request from ' + message.gameType + ' client ' +
+        utils.printLog('Received playerQuit request from ' + message.gameType + ' client ' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
@@ -302,110 +303,195 @@ rabbit.connect({
         sendMessages(result.messages);
 
         if (result.success) {
-            utilities.printLog(false, 'User removed from ' + message.gameType + ' game rooms array');
+            utils.printLog('User removed from ' + message.gameType + ' game rooms array');
             gameRoomHandler.printGameRooms();
         } else {
-            utilities.printLog(false, 'WARNING: The user is not present in the game room ' +
+            utils.printLog('WARNING: The user is not present in the game room ' +
                 '[' + message.gameRoomId + ']');
         }
-        utilities.printLog(true, 'Waiting for messages...');
+        utils.printWaiting();
 
     }, onHeartbeat: function (message) {
         // ricevuto un heartbeat dal client. Se il server non riceve heartbeat da un client per più
         // di 10 secondi, lo rimuove dal gioco e notifica la game room
-
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handleHeartbeat(message);
+
         // messaggio di force quit, in caso di heartbeat invalido
         sendMessages(result.messages);
 
         if (!result.success) {
-            utilities.printLog(false, 'Received invalid heartbeat');
-            utilities.printLog(true, 'Waiting for messages...');
+            utils.printLog('Received invalid heartbeat');
+            utils.printWaiting();
         }
 
     }, onReady: function(message) {
         // il segnale di Ready è utilizzato in varie modalità per stabilire se è il momento di iniziare la partita.
         // eventualmente, viene inviato il messaggio di startMatch
-        utilities.printLog(false, 'Received ready message from ' + message.gameType + ' client ' +
+        utils.printLog('Received ready message from ' + message.gameType + ' client ' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handleReadyMessage(message);
         sendMessages(result.messages);
 
-        utilities.printLog(true, 'Waiting for messages...');
+        utils.printWaiting();
 
     }, onPositioned: function(message) {
         // il segnale di Positioned permette di stabilire se il giocatore ha posizionato il proprio roby. Se necessario,
         // invia il messaggio di startAnimation
-        utilities.printLog(false, 'Received positioned message from ' + message.gameType + ' client ' +
+        utils.printLog('Received positioned message from ' + message.gameType + ' client ' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handlePositionedMessage(message);
         sendMessages(result.messages);
 
-        utilities.printLog(true, 'Waiting for messages...');
+        utils.printWaiting();
 
     }, onEndAnimation: function(message) {
         // il segnale di EndAnimation segnala che il giocatore ha concluso l'animazione finale, o ha premuto il segnale
         // di skip. Una volta ricevuto da tutti, invia il segnale di endMatch
-        utilities.printLog(false, 'Received endAnimation message from ' + message.gameType + ' client ' +
+        utils.printLog('Received endAnimation message from ' + message.gameType + ' client ' +
             + message.gameRoomId + '[' + message.playerId + ']');
 
         let gameRoomHandler = getGameRoomHandler(message.gameType);
         let result = gameRoomHandler.handleEndAnimationMessage(message);
         sendMessages(result.messages);
 
-        utilities.printLog(true, 'Waiting for messages...');
-
+        utils.printWaiting();
     }
 });
 
 
-randomGameRooms.setCallbacks(function () {
-    updateSessionOptions();
-}, function (gameRoomId, playerId) {
-    onHeartbeatExpired(gameRoomId, playerId, gameTypes.random)
-}, function (gameRoomData) {
-    createDbGameSession(gameRoomData);
-}, function (gameRoomData) {
-    createDbGameMatch(gameRoomData);
+// imposta callback utilizzati dalle game rooms
+commonCallbacks = {
+    onGameRoomsUpdated: function () {
+        // callback invocato ogniqualvolta viene aggiunto o rimosso un giocatore a una gameRoom.
+        // Invia un messaggio generalInfo al topic general, cosi' da aggiornare in particolare i client sul
+        // numero di giocatori collegati al momento
+        sendGeneralInfoMessage();
+
+    }, onHeartbeatExpired: function (gameRoomId, playerId, gameType) {
+        // allo scadere del timer di heartbeat, elimina il giocatore dalla game room
+        utils.printLog('Heartbeat timer of ' + gameRoomId + '[' + playerId + '] in '
+            + gameType + ' game rooms expired');
+
+        let gameRoomHandler = getGameRoomHandler(gameType);
+        let result = gameRoomHandler.handlePlayerQuit({
+            gameRoomId: gameRoomId,
+            playerId: playerId,
+            gameType: gameType
+        });
+
+        sendMessages(result.messages);
+
+        if (result.success) {
+            utils.printLog('User removed from ' + gameType + ' game rooms array');
+            gameRoomHandler.printGameRooms();
+        } else {
+            utils.printLog('WARNING: The user is not present in the game room ' +
+                '[' + gameType + ']');
+        }
+        utils.printWaiting();
+        
+    }, createDbGameSession: function (gameRoomData) {
+        // crea una gameSession nel db. Invocato nel momento in cui viene concluso il matchmaking di una gameRoom
+        let insertSession = "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
+            + "VALUES (0, "
+            + database.escape(gameRoomData.gameData.gameType) + ", "
+            + gameRoomData.gameData.timerSetting + ", "
+            + database.escape(new Date()) + ")";
+
+        database.query(insertSession, function (results, error) {
+            if (!error) {
+                gameRoomData.sessionId = results.insertId;
+            }
+            utils.printWaiting();
+        });
+        
+    }, createDbGameMatch: function (gameRoomData) {
+        // crea un match nel db. Invocato nel momento in cui viene avviato un match
+        let dateTimeNow = new Date();
+        let numPlayers = 0;
+        let anonUsers = 0;
+
+        let updateSession = "UPDATE GameSessions SET NumMatches = " + gameRoomData.gameData.matchCount + " "
+            + "WHERE Id = " + gameRoomData.sessionId;
+        database.query(updateSession);
+
+        for (let i = 0; i < gameRoomData.players.length; i++) {
+            if(gameRoomData.players[i].occupiedSlot) {
+                numPlayers++;
+            }
+        }
+
+        let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers) "
+            + "VALUES ("
+            + gameRoomData.sessionId + ", "
+            + database.escape(dateTimeNow) + ", "
+            + numPlayers + ")";
+
+        database.query(insertMatch, function (results, error) {
+            if (!error) {
+                // update match participants w. new matchId
+                let insertAllParticipants = '';
+                for (let i = 0; i < gameRoomData.players.length; i++) {
+                    if (gameRoomData.players[i].occupiedSlot) {
+                        let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : ++anonUsers;
+                        let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
+                        let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
+                        insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, UserId, Registered, " +
+                            "BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
+                            + gameRoomData.sessionId + ", "
+                            + results.insertId + ", "
+                            + database.escape(userId) + ", "
+                            + registered + ", "
+                            + database.escape(dateTimeNow) + ", "
+                            + gameRoomData.players[i].gameData.match.points + ", "
+                            + gameRoomData.players[i].gameData.match.pathLength + ", "
+                            + gameRoomData.players[i].gameData.match.time + ", "
+                            + winner + "); ";
+                    }
+                }
+                if (insertAllParticipants !== '') {
+                    database.query(insertAllParticipants, function () {
+                        utils.printWaiting();
+                    });
+                }
+            }
+        });
+    }
+};
+
+randomGameRooms.setCallbacks(commonCallbacks);
+customGameRooms.setCallbacks(commonCallbacks);
+royaleGameRooms.setCallbacks({
+    createDbGameMatch: commonCallbacks.createDbGameMatch,
+    createDbGameSession: commonCallbacks.createDbGameSession,
+    onGameRoomsUpdated: commonCallbacks.onGameRoomsUpdated,
+    onStartTimerExpired: function (gameRoomId) {
+        utils.printLog("Start timer of royale game room expired");
+        let result = royaleGameRooms.directStartMatch(gameRoomId);
+        sendMessages(result.messages);
+        utils.printWaiting();
+    }
 });
 
 
-customGameRooms.setCallbacks(function () {
-    updateSessionOptions();
-}, function (gameRoomId, playerId) {
-    onHeartbeatExpired(gameRoomId, playerId, gameTypes.custom)
-}, function (gameRoomData) {
-    createDbGameSession(gameRoomData);
-}, function (gameRoomData) {
-    createDbGameMatch(gameRoomData);
-});
-
-
-royaleGameRooms.setCallbacks(function () {
-    updateSessionOptions();
-
-}, function (gameRoomId, playerId) {
-    onHeartbeatExpired(gameRoomId, playerId, gameTypes.royale);
-
-}, function (gameRoomId) {
-    utilities.printLog(false, "Start timer of royale game room expired");
-
-    let result = royaleGameRooms.directStartMatch(gameRoomId);
-    sendMessages(result.messages);
-
-    // options.addTotalMatches();
-    // utilities.printLog(false, "Played matches from the beginning: " + options.getTotalMatches());
-    utilities.printLog(true, 'Waiting for messages...');
-}, function (gameRoomData) {
-    createDbGameSession(gameRoomData);
-}, function (gameRoomData) {
-    createDbGameMatch(gameRoomData);
-});
+let getGameRoomHandler = function(gameType) {
+    switch (gameType) {
+        case gameRoomsUtils.gameTypes.custom: {
+            return customGameRooms;
+        }
+        case gameRoomsUtils.gameTypes.royale: {
+            return royaleGameRooms;
+        }
+        default: {
+            return randomGameRooms;
+        }
+    }
+};
 
 
 let sendMessages = function(messages) {
@@ -418,158 +504,41 @@ let sendMessages = function(messages) {
 };
 
 
-let createDbGameSession = function(gameRoomData) {
-    let insertSession = "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
-                      + "VALUES (0, "
-                              + database.sanitize(gameRoomData.gameData.gameType) + ", "
-                              + gameRoomData.gameData.timerSetting + ", "
-                              + database.sanitize(new Date()) + ")";
-
-    database.query(insertSession, function (results, error) {
-        if (error) {
-            utilities.printLog(false, "This query generated an error: " + insertSession);
-        } else {
-            gameRoomData.sessionId = results.insertId;
-        }
-    });
-};
-
-let createDbGameMatch = function(gameRoomData) {
-    let dateTimeNow = new Date();
-    let numPlayers = 0;
-    let anonUsers = 0;
-
-    for (let i = 0; i < gameRoomData.players.length; i++) {
-        if(gameRoomData.players[i].occupiedSlot) {
-            numPlayers++;
-        }
-    }
-
-    let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers) "
-                    + "VALUES ("
-                              + gameRoomData.sessionId + ", "
-                              + database.sanitize(dateTimeNow) + ", "
-                              + numPlayers + ")";
-    database.query(insertMatch, function (results, error) {
-        if (error) {
-            utilities.printLog(false, "This query generated an error: " + insertMatch);
-        } else {
-            // update match participans w. new matchId
-            for (let i = 0; i < gameRoomData.players.length; i++) {
-                if (gameRoomData.players[i].occupiedSlot) {
-                    let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : ++anonUsers;
-                    let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
-                    let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
-                    let insertParticipant = "INSERT INTO MatchParticipants (SessionId, MatchId, UserId, Registered, " +
-                        "BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                        + gameRoomData.sessionId + ", "
-                        + results.insertId + ", "
-                        + database.sanitize(userId) + ", "
-                        + registered + ", "
-                        + database.sanitize(dateTimeNow) + ", "
-                        + gameRoomData.players[i].gameData.match.points + ", "
-                        + gameRoomData.players[i].gameData.match.pathLength + ", "
-                        + gameRoomData.players[i].gameData.match.time + ", "
-                        + winner + ")";
-                    database.query(insertParticipant, function (results, error) {
-                        if (error) {
-                            utilities.printLog(false, "This query generated an error: " + insertParticipant);
-                        }
-                    });
-                }
-            }
-        }
-    });
-
-    let updateSession = "UPDATE GameSessions SET NumMatches = " + gameRoomData.gameData.matchCount + " "
-                      + "WHERE Id = " + gameRoomData.sessionId;
-    database.query(updateSession, function (results, error) {
-        if (error) {
-            utilities.printLog(false, "This query generated an error: " + updateSession);
-        }
-    });
-};
-
-
-let onHeartbeatExpired = function (gameRoomIdValue, playerIdValue, gameTypeValue) {
-    utilities.printLog(false, 'Heartbeat timer of ' + gameRoomIdValue + '[' + playerIdValue + '] in '
-        + gameTypeValue + ' game rooms expired');
-
-    let gameRoomHandler = getGameRoomHandler(gameTypeValue);
-    let result = gameRoomHandler.handlePlayerQuit({
-        gameRoomId: gameRoomIdValue,
-        playerId: playerIdValue,
-        gameType: gameTypeValue
-    });
-
-    sendMessages(result.messages);
-
-    if (result.success) {
-        utilities.printLog(false, 'User removed from ' + gameTypeValue + ' game rooms array');
-        gameRoomHandler.printGameRooms();
-    } else {
-        utilities.printLog(false, 'WARNING: The user is not present in the game room ' +
-            '[' + gameRoomIdValue + ']');
-    }
-    utilities.printLog(true, 'Waiting for messages...');
-};
-
-
-let getGameRoomHandler = function(gameType) {
-    switch (gameType) {
-        case gameTypes.custom: {
-            return customGameRooms;
-        }
-        case gameTypes.royale: {
-            return royaleGameRooms;
-        }
-        default: {
-            return randomGameRooms;
-        }
-    }
-};
-
-
-let updateSessionOptions = function () {
-    let connectedPlayers = 0;
-    connectedPlayers += randomGameRooms.getConnectedPlayers();
-    connectedPlayers += customGameRooms.getConnectedPlayers();
-    options.setConnectedPlayers(connectedPlayers);
-
-    let randomWaitingPlayers = randomGameRooms.getWaitingPlayers();
-    options.setRandomWaitingPlayers(randomWaitingPlayers);
-    sendGeneralInfoMessage();
-};
-
-
 let sendGeneralInfoMessage = function (correlationId) {
+    // il conteggio inizia da 24000 partite, valore del contatore match prima dell'implementazione della nuova
+    // versione del server
     let totalMatches = "SELECT COUNT(*) + 24000 AS totalMatches FROM GameMatches";
     database.query(totalMatches, function (results, error) {
         let message = {};
 
+        let connectedPlayers = randomGameRooms.getConnectedPlayers() + customGameRooms.getConnectedPlayers()
+            + royaleGameRooms.getConnectedPlayers();
+
         if (error) {
             message = {
-                msgType: messageTypes.s_generalInfo,
+                msgType: rabbit.messageTypes.s_generalInfo,
                 totalMatches: 0,
-                connectedPlayers: options.getConnectedPlayers(),
-                randomWaitingPlayers: options.getRandomWaitingPlayers(),
-                requiredClientVersion: utilities.requiredClientVersion
+                connectedPlayers: connectedPlayers,
+                correlationId: correlationId,
+                randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
+                requiredClientVersion: utils.requiredClientVersion
             };
         } else {
-            utilities.printLog(false, JSON.stringify(results));
             message = {
-                msgType: messageTypes.s_generalInfo,
+                msgType: rabbit.messageTypes.s_generalInfo,
                 totalMatches: results[0].totalMatches,
-                connectedPlayers: options.getConnectedPlayers(),
-                randomWaitingPlayers: options.getRandomWaitingPlayers(),
-                requiredClientVersion: utilities.requiredClientVersion
+                connectedPlayers: connectedPlayers,
+                correlationId: correlationId,
+                randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
+                requiredClientVersion: utils.requiredClientVersion
             };
         }
 
-        if (correlationId === undefined) {
+        if (message.correlationId === undefined)
             rabbit.sendInGeneralTopic(message);
-        } else {
-            rabbit.sendInClientControlQueue(correlationId, message);
-        }
+        else
+            rabbit.sendInClientControlQueue(message.correlationId, message);
+
+        utils.printWaiting();
     });
 };
