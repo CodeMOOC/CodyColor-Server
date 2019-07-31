@@ -1,14 +1,19 @@
 /*
- * rabbitCommunicator.js: file utilizzato per gestire la comunicazione con il broker, tramite il modulo stompJs.
+ * rabbit.js: file utilizzato per gestire la comunicazione con il broker, tramite il modulo stompJs.
  * Espone dei metodi che rappresentano le operazioni base di interazione server-broker dell'applicazione.
  */
 (function () {
 
-    let utilities = require("./utilities");
-    const messageTypes = utilities.messageTypes;
-    const gameTypes = utilities.gameTypes;
-
+    let utils;
+    let gameRoomsUtils;
     let stomp = require('stompjs');
+
+    // inizializza riferimenti a moduli e librerie
+    module.exports.setModules = function (modules) {
+        gameRoomsUtils = modules.gameRoomsUtils;
+        utils = modules.utils;
+    };
+    
     let client;
     let connected = false;
     let onMessageCallbacks = {};
@@ -29,11 +34,47 @@
         vHost:      "/",
     };
 
-    // Il parametro -l esegue lo script in locale
     const host = process.env.HOST || 'rabbit';
     const port = process.env.PORT || 15674;
-    const stompUrl = (process.argv[2] === '-l') ?
-        "ws://127.0.0.1:15674/ws" : `ws://${host}:${port}/ws`;
+    const stompUrl =  `ws://${host}:${port}/ws`;
+
+    const messageTypes = {
+        c_connectedSignal: "c_connectedSignal",
+        s_generalInfo:     "s_generalInfo",
+
+        c_gameRequest:  "c_gameRequest",    // client richiede di giocare
+        s_gameResponse: "s_gameResponse",   // server fornisce credenziali di gioco
+
+        c_playerQuit:    "c_playerQuit",     // richiesta di fine gioco di un client
+        s_gameQuit:      "s_gameQuit",       // forza il fine gioco per tutti
+        s_playerAdded:   "s_playerAdded",    // notifica un giocatore si collega
+        s_playerRemoved: "s_playerRemoved",  // notifica un giocatore si scollega
+        c_validation:     "c_validation",    // rende l'iscrizione del giocatore 'valida' fornendo credenz. come il nick
+        c_ready:          "c_ready",         // segnale pronto a giocare; viene intercettato anche dai client
+
+        s_startMatch:     "s_startMatch",     // segnale avvia partita
+        c_positioned:     "c_positioned",     // segnale giocatore posizionato
+        s_startAnimation: "s_startAnimation", // inviato quando tutti sono posizionati
+        c_endAnimation:   "c_endAnimation",   // notifica la fine dell'animazione, o lo skip
+        s_endMatch:       "s_endMatch",       // segnale aftermatch
+
+        c_heartbeat: "c_heartbeat",           // segnale heartbeat
+        c_chat:      "c_chat",                // chat, intercettati SOLO dai client
+
+        c_signUpRequest: "c_signUpRequest",  // aggiunge l'utente al db con nickname
+        c_logInRequest:  "c_logInRequest",  // richiedi nickname utente con uid
+        s_authResponse:  "s_authResponse",  // fornisci il nickname utente - o messaggio error
+
+        c_userDeleteRequest:  "c_userDeleteRequest",   // richiedi l'eliminazione di un utente
+        s_userDeleteResponse: "s_userDeleteResponse",  // conferma l'eliminazione di un utente
+
+        c_rankingsRequest:  "c_rankingsRequest",  // richiedi le classifiche
+        s_rankingsResponse: "s_rankingsResponse", // restituisci le classifiche
+    };
+
+
+    // rende disponibili i messageTypes all'esterno del modulo
+    module.exports.messageTypes = messageTypes;
 
 
     // tenta la connessione al broker; in caso di connessione completata, sottoscrive
@@ -42,7 +83,7 @@
         if (callbacks !== undefined)
             onMessageCallbacks = callbacks;
 
-        utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
+        utils.printLog(`Initializing StompJs API at ${stompUrl}...`);
         client = stomp.overWS(stompUrl);
         client.connect(
             credentials.username,
@@ -55,8 +96,8 @@
         // thread di controllo per eventuale connection retry
         setInterval(function () {
             if (!connected) {
-                utilities.printLog(true, "Connection to the broker not available. Retrying...");
-                utilities.printLog(false, `Initializing StompJs API at ${stompUrl}...`);
+                utils.printLog("Connection to the broker not available. Retrying...");
+                utils.printLog(`Initializing StompJs API at ${stompUrl}...`);
                 client = stomp.overWS(stompUrl);
                 client.connect(
                     credentials.username,
@@ -75,33 +116,35 @@
         // aggiunge un id univoco al messaggio
         message.msgId = (Math.floor(Math.random() * 100000)).toString();
         client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
-        utilities.printLog(false, `Sent ${message.msgType} in client queue`);
+        utils.printLog(`Sent ${message.msgType} in client queue`);
     };
 
 
+    // invia un messaggio nel topic generale, topic al quale sono in ascolto tutti i client
     module.exports.sendInGeneralTopic = function(message) {
         message.msgId = (Math.floor(Math.random() * 100000)).toString();
         client.send(endpoints.generalTopic, {}, JSON.stringify(message));
-        utilities.printLog(false, `Sent ${message.msgType} in general topic`);
+        utils.printLog(`Sent ${message.msgType} in general topic`);
     };
 
 
+    // invia messaggio nel topic di una specifica game room
     module.exports.sendInGameRoomTopic = function(message) {
         client.send(getGameRoomEndpoint(message.gameType, message.gameRoomId), {}, JSON.stringify(message));
-        utilities.printLog(false,
+        utils.printLog(false,
             `Sent ${message.msgType} in ${message.gameType} game room ${message.gameRoomId}`);
     };
 
 
     let getGameRoomEndpoint = function(gameType, gameRoomId) {
         switch (gameType) {
-            case gameTypes.random: {
+            case gameRoomsUtils.gameTypes.random: {
                 return endpoints.randomGameRoomsTopic + '.' + gameRoomId;
             }
-            case gameTypes.custom: {
+            case gameRoomsUtils.gameTypes.custom: {
                 return endpoints.customGameRoomsTopic + '.' + gameRoomId;
             }
-            case gameTypes.royale: {
+            case gameRoomsUtils.gameTypes.royale: {
                 return endpoints.royaleGameRoomsTopic + '.' + gameRoomId;
             }
         }
@@ -110,7 +153,7 @@
 
     // a connessione avvenuta, lo script si pone in ascolto di messaggi in arrivo dai client
     let onConnect = function () {
-        utilities.printLog(true, 'Connection to the broker ready');
+        utils.printLog('Connection to the broker ready');
         connected = true;
 
         client.subscribe(
@@ -134,12 +177,12 @@
             handleIncomingMessages
         );
 
-        utilities.printLog(true, 'Waiting for messages...');
+        utils.printWaiting();
     };
 
 
     let onError = function () {
-        utilities.printLog(true, 'Error connecting to the broker.');
+        utils.printLog('Error connecting to the broker.');
         connected = false;
     };
 
@@ -156,7 +199,7 @@
             lastMsgId = message.msgId;
 
         } else if (lastMsgId === message.msgId) {
-            console.log("Received duplicate message. Ignored.");
+            utils.printLog("Received duplicate message. Ignored.");
             return;
         }
 
