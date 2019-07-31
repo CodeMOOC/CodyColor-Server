@@ -2,24 +2,41 @@
  * gameRoomsCustom.js: file per la gestione dell'array gameRoom ad accoppiamento personalizzato dei giocatori.
  */
 (function () {
-    let gameRoomsUtils;
     let rabbit = require("./rabbit");
+    let utils = require("./utils");
+    let gameRoomsUtils = require("./gameRoomsUtils");
     let customGameRooms = [];
+    let callbacks = {};
 
-
-    // inizializza riferimenti a moduli e librerie
-    module.exports.setModules = function (modules) {
-        gameRoomsUtils = modules.gameRoomsUtils;
-    };
 
     /* -------------------------------------------------------------------------------------------- *
-     * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
-     * gameRoom dall'esterno del modulo.
-     * -------------------------------------------------------------------------------------------- */
+    * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
+    * gameRoom dall'esterno del modulo.
+    * -------------------------------------------------------------------------------------------- */
 
     // stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function() {
-        gameRoomsUtils.printGameRooms(customGameRooms);
+        utils.printLog('New custom game room configuration:');
+
+        if (customGameRooms.length <= 0) {
+            utils.printLog('empty');
+
+        } else {
+            let gameRoomString = '';
+            for (let gameRoomIndex = 0; gameRoomIndex < customGameRooms.length; gameRoomIndex++) {
+                gameRoomString += gameRoomIndex.toString() + '[';
+                for (let playerIndex = 0; playerIndex < customGameRooms[gameRoomIndex].players.length; playerIndex++) {
+                    gameRoomString += (customGameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
+                }
+                gameRoomString += '] ';
+                if ((gameRoomIndex + 1) % 4 === 0) {
+                    utils.printLog(gameRoomString);
+                    gameRoomString = '';
+                }
+            }
+            if (gameRoomString !== '')
+                utils.printLog(gameRoomString);
+        }
     };
 
 
@@ -33,6 +50,13 @@
         }
         return connectedPlayers;
     };
+
+
+    // inizializza callback utilizzati dal modulo
+    module.exports.setCallbacks = function (newCallbacks) {
+        callbacks = newCallbacks;
+    };
+
 
 
     /* -------------------------------------------------------------------------------------------- *
@@ -114,7 +138,7 @@
             });
         }
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -161,7 +185,7 @@
             gameType: message.gameType,
         });
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -223,7 +247,7 @@
             });
 
             if (customGameRooms[message.gameRoomId].gameData.matchCount === 0)
-                gameRoomsUtils.commonCallbacks.createDbGameSession(customGameRooms[message.gameRoomId]);
+                callbacks.createDbGameSession(customGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -290,7 +314,7 @@
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            gameRoomsUtils.commonCallbacks.createDbGameMatch(customGameRooms[message.gameRoomId]);
+            callbacks.createDbGameMatch(customGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -417,7 +441,7 @@
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
-            gameRoomsUtils.commonCallbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.custom)
+            callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.custom)
         }, 10000);
     };
 
@@ -534,7 +558,7 @@
             state: (state !== undefined) ? state : gameRoomsUtils.gameRoomStates.free,
             timerSetting: 30000,
             gameType: gameRoomsUtils.gameTypes.custom,
-            code: gameRoomsUtils.generateUniqueCode()
+            code: gameRoomsUtils.generateUniqueCode(customGameRooms)
         }
     };
 }());

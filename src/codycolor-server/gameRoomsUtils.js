@@ -2,7 +2,7 @@
  * gameRoomsUtils.js: metodi comuni utilizzati in più tipologie di game room
  */
 (function () {
-    let utilities = require("./utils");
+    let utils = require("./utils");
     let commonCallbacks = {};
 
     // costanti utilizzate per tener traccia della tipologia di game room
@@ -32,24 +32,13 @@
     module.exports.commonCallbacks = commonCallbacks;
 
 
-    // algoritmo per il calcolo del numero di giocatori validati presenti, utilizzato in più tipologie
-    module.exports.getConnectedPlayers = function (gameRooms) {
-        let connectedPlayers = 0;
-        for (let i = 0; i < gameRooms.length; i++) {
-            for (let j = 0; j < gameRooms[i].players.length; j++)
-                if (gameRooms[i].players[j].occupiedSlot)
-                    connectedPlayers++;
-        }
-        return connectedPlayers;
-    };
-
 
     // algoritmo per la stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function (gameRooms) {
-        utilities.printLog(false, 'New ' + gameRooms.gameData.gameType +' game room configuration:');
+        utils.printLog(false, 'New ' + gameRooms.gameData.gameType +' game room configuration:');
 
         if (gameRooms.length <= 0) {
-            utilities.printLog(false, 'empty');
+            utils.printLog(false, 'empty');
 
         } else {
             let gameRoomString = '';
@@ -60,12 +49,12 @@
                 }
                 gameRoomString += '] ';
                 if (gameRoomIndex % 4 === 0 && gameRoomIndex !== 0) {
-                    utilities.printLog(false, gameRoomString);
+                    utils.printLog(false, gameRoomString);
                     gameRoomString = '';
                 }
             }
             if (gameRoomString !== '')
-                utilities.printLog(false, gameRoomString);
+                utils.printLog(false, gameRoomString);
         }
     };
 

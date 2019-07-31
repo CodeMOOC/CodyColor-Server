@@ -13,19 +13,6 @@ let randomGameRooms = require('./gameRoomsRandom');
 let customGameRooms = require('./gameRoomsCustom');
 let royaleGameRooms = require('./gameRoomsRoyale');
 
-// inizializza i sotto moduli
-let subModules = {
-    gameRoomsUtils: gameRoomsUtils,
-    utils: utils
-};
-
-randomGameRooms.setModules(subModules);
-customGameRooms.setModules(subModules);
-royaleGameRooms.setModules(subModules);
-database.setModules(subModules);
-rabbit.setModules(subModules);
-
-
 utils.printProgramHeader();
 
 rabbit.connect({
@@ -378,7 +365,7 @@ rabbit.connect({
 
 
 // imposta callback utilizzati dalle game rooms
-gameRoomsUtils.setCommonCallbacks({
+commonCallbacks = {
     onGameRoomsUpdated: function () {
         // callback invocato ogniqualvolta viene aggiunto o rimosso un giocatore a una gameRoom.
         // Invia un messaggio generalInfo al topic general, cosi' da aggiornare in particolare i client sul
@@ -475,12 +462,14 @@ gameRoomsUtils.setCommonCallbacks({
             }
         });
     }
-});
+};
 
-// imposta i callback utilizzati nella sola gameRoom Royale. In questo caso, è necessario
-// un callback invocato alla scadenza dello startTimer della gameRoom, che avvia la partita
-// automaticamente
-royaleGameRooms.setSpecificCallbacks({ 
+randomGameRooms.setCallbacks(commonCallbacks);
+customGameRooms.setCallbacks(commonCallbacks);
+royaleGameRooms.setCallbacks({
+    createDbGameMatch: commonCallbacks.createDbGameMatch,
+    createDbGameSession: commonCallbacks.createDbGameSession,
+    onGameRoomsUpdated: commonCallbacks.onGameRoomsUpdated,
     onStartTimerExpired: function (gameRoomId) {
         utils.printLog("Start timer of royale game room expired");
         let result = royaleGameRooms.directStartMatch(gameRoomId);
@@ -545,7 +534,11 @@ let sendGeneralInfoMessage = function (correlationId) {
             };
         }
 
-        sendMessages([ message ]);
+        if (message.correlationId === undefined)
+            rabbit.sendInGeneralTopic(message);
+        else
+            rabbit.sendInClientControlQueue(message.correlationId, message);
+
         utils.printWaiting();
     });
 };

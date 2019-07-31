@@ -4,16 +4,10 @@
  */
 (function () {
 
-    let utils;
-    let gameRoomsUtils;
+    let utils = require('./utils');
+    let gameRoomsUtils = require('./gameRoomsUtils');
     let stomp = require('stompjs');
 
-    // inizializza riferimenti a moduli e librerie
-    module.exports.setModules = function (modules) {
-        gameRoomsUtils = modules.gameRoomsUtils;
-        utils = modules.utils;
-    };
-    
     let client;
     let connected = false;
     let onMessageCallbacks = {};
@@ -131,7 +125,7 @@
     // invia messaggio nel topic di una specifica game room
     module.exports.sendInGameRoomTopic = function(message) {
         client.send(getGameRoomEndpoint(message.gameType, message.gameRoomId), {}, JSON.stringify(message));
-        utils.printLog(false,
+        utils.printLog(
             `Sent ${message.msgType} in ${message.gameType} game room ${message.gameRoomId}`);
     };
 

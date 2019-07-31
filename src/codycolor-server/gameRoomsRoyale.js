@@ -3,17 +3,12 @@
  * partite di tipo Battle Royale.
  */
 (function () {
-    let gameRoomsUtils;
     let rabbit = require("./rabbit");
+    let utils = require("./utils");
+    let gameRoomsUtils = require("./gameRoomsUtils");
     let royaleGameRooms = [];
-    let specificCallbacks = {};
-
-
-    // inizializza riferimenti a moduli e librerie
-    module.exports.setModules = function (modules) {
-        gameRoomsUtils = modules.gameRoomsUtils;
-    };
-
+    let callbacks = {};
+    
 
     /* -------------------------------------------------------------------------------------------- *
     * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
@@ -22,7 +17,27 @@
 
     // stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function() {
-        gameRoomsUtils.printGameRooms(royaleGameRooms);
+        utils.printLog('New royale game room configuration:');
+
+        if (royaleGameRooms.length <= 0) {
+            utils.printLog('empty');
+
+        } else {
+            let gameRoomString = '';
+            for (let gameRoomIndex = 0; gameRoomIndex < royaleGameRooms.length; gameRoomIndex++) {
+                gameRoomString += gameRoomIndex.toString() + '[';
+                for (let playerIndex = 0; playerIndex < royaleGameRooms[gameRoomIndex].players.length; playerIndex++) {
+                    gameRoomString += (royaleGameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
+                }
+                gameRoomString += '] ';
+                if ((gameRoomIndex + 1) % 4 === 0) {
+                    utils.printLog(gameRoomString);
+                    gameRoomString = '';
+                }
+            }
+            if (gameRoomString !== '')
+                utils.printLog(gameRoomString);
+        }
     };
 
 
@@ -38,9 +53,9 @@
     };
 
 
-    // inizializza il callback utilizzato dal modulo
-    module.exports.setSpecificCallbacks = function (callbacks) {
-        specificCallbacks = callbacks;
+    // inizializza callback utilizzati dal modulo
+    module.exports.setCallbacks = function (newCallbacks) {
+        callbacks = newCallbacks;
     };
 
 
@@ -106,7 +121,7 @@
             if (message.startDate !== undefined) {
                 royaleGameRooms[result.gameRoomId].gameData.startDate = message.startDate;
                 setTimeout(function () {
-                    specificCallbacks.onStartTimerExpired(result.gameRoomId);
+                    callbacks.onStartTimerExpired(result.gameRoomId);
                 }, message.startDate - (new Date()).getTime());
             }
         }
@@ -132,7 +147,7 @@
             });
         }
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -207,7 +222,7 @@
             });
 
             if (royaleGameRooms[message.gameRoomId].gameData.matchCount === 0)
-                gameRoomsUtils.commonCallbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
+                callbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
 
         } else {
             clearGameRoom(gameRoomId);
@@ -301,7 +316,7 @@
             }
         }
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -363,7 +378,7 @@
             });
 
             if (royaleGameRooms[message.gameRoomId].gameData.matchCount === 0)
-                gameRoomsUtils.commonCallbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
+                callbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
 
         } else if (result.success && countValidPlayers(message.gameRoomId) <= 1) {
             // non ci sono abbastanza giocatori, ma è ora di iniziare il match: esci
@@ -438,7 +453,7 @@
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            gameRoomsUtils.commonCallbacks.createDbGameMatch(royaleGameRooms[message.gameRoomId]);
+            callbacks.createDbGameMatch(royaleGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -592,7 +607,7 @@
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
-            gameRoomsUtils.commonCallbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.royale)
+            callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.royale)
         }, 10000);
     };
 
@@ -720,7 +735,7 @@
             maxPlayersSetting: 20,
             state: (state !== undefined) ? state : gameRoomsUtils.gameRoomStates.free,
             gameType: gameRoomsUtils.gameTypes.royale,
-            code: gameRoomsUtils.generateUniqueCode()
+            code: gameRoomsUtils.generateUniqueCode(royaleGameRooms)
         }
     };
 }());

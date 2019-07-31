@@ -3,12 +3,7 @@
  */
 (function () {
     let mysql = require('mysql');
-    let utils;
-
-    // inizializza riferimenti a moduli e librerie
-    module.exports.setModules = function (modules) {
-        utils = modules.utils;
-    };
+    let utils = require("./utils");
 
     const connection = mysql.createConnection({
         host: 'database',

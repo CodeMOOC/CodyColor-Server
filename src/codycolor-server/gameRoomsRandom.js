@@ -3,24 +3,40 @@
  */
 (function () {
     let rabbit = require("./rabbit");
-    let gameRoomsUtils;
+    let utils = require("./utils");
+    let gameRoomsUtils = require("./gameRoomsUtils");
     let randomGameRooms = [];
-
-
-    // inizializza riferimenti a moduli e librerie
-    module.exports.setModules = function (modules) {
-        gameRoomsUtils = modules.gameRoomsUtils;
-    };
+    let callbacks = {};
 
 
     /* -------------------------------------------------------------------------------------------- *
-     * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
-     * gameRoom dall'esterno del modulo.
-     * -------------------------------------------------------------------------------------------- */
+    * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
+    * gameRoom dall'esterno del modulo.
+    * -------------------------------------------------------------------------------------------- */
 
     // stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function() {
-        gameRoomsUtils.printGameRooms(randomGameRooms);
+        utils.printLog('New random game room configuration:');
+
+        if (randomGameRooms.length <= 0) {
+            utils.printLog('empty');
+
+        } else {
+            let gameRoomString = '';
+            for (let gameRoomIndex = 0; gameRoomIndex < randomGameRooms.length; gameRoomIndex++) {
+                gameRoomString += gameRoomIndex.toString() + '[';
+                for (let playerIndex = 0; playerIndex < randomGameRooms[gameRoomIndex].players.length; playerIndex++) {
+                    gameRoomString += (randomGameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
+                }
+                gameRoomString += '] ';
+                if ((gameRoomIndex + 1) % 4 === 0) {
+                    utils.printLog(gameRoomString);
+                    gameRoomString = '';
+                }
+            }
+            if (gameRoomString !== '')
+                utils.printLog(gameRoomString);
+        }
     };
 
 
@@ -44,6 +60,12 @@
                 waitingPlayers++;
         }
         return waitingPlayers;
+    };
+
+
+    // inizializza callback utilizzati dal modulo
+    module.exports.setCallbacks = function (newCallbacks) {
+        callbacks = newCallbacks;
     };
 
 
@@ -146,7 +168,7 @@
             });
         }
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -193,7 +215,7 @@
             gameType: message.gameType,
         });
 
-        gameRoomsUtils.commonCallbacks.onGameRoomsUpdated();
+        callbacks.onGameRoomsUpdated();
         return result;
     };
 
@@ -256,7 +278,7 @@
 
             if (randomGameRooms[message.gameRoomId].gameData.matchCount === 0) {
                 // si è al primo match della sessione: salva i dati sessione nel db
-                gameRoomsUtils.commonCallbacks.createDbGameSession(randomGameRooms[message.gameRoomId]);
+                callbacks.createDbGameSession(randomGameRooms[message.gameRoomId]);
             }
         }
 
@@ -324,7 +346,7 @@
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            gameRoomsUtils.commonCallbacks.createDbGameMatch(randomGameRooms[message.gameRoomId]);
+            callbacks.createDbGameMatch(randomGameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -397,7 +419,7 @@
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
-            gameRoomsUtils.commonCallbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.random)
+            callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.random)
         }, 10000);
     };
 
