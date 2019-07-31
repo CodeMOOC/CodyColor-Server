@@ -1,7 +1,0 @@
-# Development-specific config
-version: '3'
-
-services:
-  rabbit:
-    labels:
-    - "traefik.frontend.rule=Host:codycolor-beta.codemooc.net;PathPrefixStrip:/api"

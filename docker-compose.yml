@@ -1,0 +1,39 @@
+version: '3'
+
+networks:
+  web:
+    external: true
+  backend:
+
+services:
+  rabbit:
+    image: beevelop/rabbitmq-stomp
+    networks:
+    - web
+    - backend
+    env_file: ./config.env
+    expose:
+    - "15674"
+
+  server:
+    build: ./src/codycolor-server
+    networks:
+    - backend
+    env_file: ./config.env
+    depends_on:
+    - rabbit
+    - database
+
+  database:
+    image: mysql:5.7
+    networks:
+    - backend
+    env_file: ./config.env
+
+  database-client:
+    build: ./src/database-client
+    depends_on:
+    - database
+    networks:
+    - backend
+    env_file: ./config.env

@@ -1,7 +1,6 @@
 SHELL := /bin/bash
 
-ENV ?= dev
-DC := docker-compose -f docker/docker-compose.yml -f docker/docker-compose.${ENV}.yml --project-name codycolor
+DC := docker-compose -f docker-compose.yml -f docker-compose.custom.yml
 DC_RUN := ${DC} run --rm
 
 include config.env
@@ -13,7 +12,7 @@ confirmation:
 
 .PHONY: cmd
 cmd:
-	@echo 'Docker-Compose command for ${ENV} environment:'
+	@echo 'Docker-Compose command:'
 	@echo '${DC}'
 
 .PHONY: up
@@ -46,6 +45,10 @@ mysql:
 mysqlclient:
 	${DC_RUN} database-client /app/client.sh
 
+.PHONY: install
+install:
+	${DC_RUN} database-client mysql -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} < src/database-client/create.sql
+
 .PHONY: dump
 dump:
 	${DC_RUN} database-client mysqldump -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} > dump.sql
@@ -58,3 +61,7 @@ stop:
 .PHONY: rm
 rm:
 	${DC} rm -fs
+
+.PHONY: logs
+logs:
+	docker logs -f $(shell ${DC} ps -q server)
