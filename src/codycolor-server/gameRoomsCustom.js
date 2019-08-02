@@ -91,7 +91,7 @@
         if (!result.success) {
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameResponse,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.custom,
                 code: '0000',
                 correlationId: message.correlationId,
             });
@@ -120,7 +120,7 @@
         // crea i messaggi di risposta
         result.messages.push({
             msgType: rabbit.messageTypes.s_gameResponse,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.custom,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             code: customGameRooms[result.gameRoomId].gameData.code,
@@ -131,7 +131,7 @@
         if (customGameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
             result.messages.push({
                 msgType: rabbit.messageTypes.s_playerAdded,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.custom,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
                 gameData: getGameRoomData(result.gameRoomId)
@@ -158,7 +158,7 @@
         result.success = true;
         result.messages.push({
             msgType: rabbit.messageTypes.s_playerAdded,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.custom,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
             gameData: getGameRoomData(message.gameRoomId)
@@ -182,7 +182,7 @@
         result.messages.push({
             msgType: rabbit.messageTypes.s_gameQuit,
             gameRoomId: message.gameRoomId,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.custom,
         });
 
         callbacks.onGameRoomsUpdated();
@@ -204,7 +204,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.custom
             });
 
         } else {
@@ -241,7 +241,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.custom,
                 tiles: customGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
@@ -273,7 +273,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.custom,
                 gameData: getGameRoomData(message.gameRoomId)
             });
         }
