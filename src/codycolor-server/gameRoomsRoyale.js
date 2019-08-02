@@ -338,13 +338,17 @@
                 gameType: gameRoomsUtils.gameTypes.royale
             });
 
-            return result;
-        }
+        } else if (!royaleGameRooms[message.gameRoomId].players[message.playerId].occupiedSlot) {
+            callbacks.onHeartbeatExpired(message.gameRoomId, message.playerId, gameRoomsUtils.gameTypes.royale);
 
-        result.success = true;
-        clearTimeout(royaleGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
-        royaleGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer
-            = generateHeartbeatTimer(message.gameRoomId, message.playerId);
+        } else {
+            // heartbeat valido; resetta timer
+            result.success = true;
+            clearTimeout(royaleGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
+            royaleGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer
+                = generateHeartbeatTimer(message.gameRoomId, message.playerId);
+
+        }
 
         return result;
     };

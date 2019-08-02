@@ -321,7 +321,7 @@ rabbit.connect({
         sendMessages(result.messages);
 
         if (!result.success) {
-            utils.printLog('Received invalid heartbeat');
+            utils.printLog('Received invalid heartbeat. Trying to disconnect the user');
             utils.printWaiting();
         }
 
@@ -375,13 +375,12 @@ commonCallbacks = {
     }, onHeartbeatExpired: function (gameRoomId, playerId, gameType) {
         // allo scadere del timer di heartbeat, elimina il giocatore dalla game room
         utils.printLog('Heartbeat timer of ' + gameRoomId + '[' + playerId + '] in '
-            + gameType + ' game rooms expired');
+            + gameType + ' game rooms expired, or invalid heartbeat');
 
         let gameRoomHandler = getGameRoomHandler(gameType);
         let result = gameRoomHandler.handlePlayerQuit({
             gameRoomId: gameRoomId,
-            playerId: playerId,
-            gameType: gameType
+            playerId: playerId
         });
 
         sendMessages(result.messages);
