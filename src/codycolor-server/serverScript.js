@@ -467,6 +467,7 @@ commonCallbacks = {
 randomGameRooms.setCallbacks(commonCallbacks);
 customGameRooms.setCallbacks(commonCallbacks);
 royaleGameRooms.setCallbacks({
+    onHeartbeatExpired: commonCallbacks.onHeartbeatExpired,
     createDbGameMatch: commonCallbacks.createDbGameMatch,
     createDbGameSession: commonCallbacks.createDbGameSession,
     onGameRoomsUpdated: commonCallbacks.onGameRoomsUpdated,

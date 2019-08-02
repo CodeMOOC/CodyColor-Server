@@ -151,7 +151,7 @@
         result.success = true;
         result.messages.push({
             msgType: rabbit.messageTypes.s_gameResponse,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.random,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             correlationId: message.correlationId,
@@ -161,7 +161,7 @@
         if (randomGameRooms[result.gameRoomId].players[result.playerId].gameData.validated) {
             result.messages.push({
                 msgType: rabbit.messageTypes.s_playerAdded,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.random,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
                 gameData: getGameRoomData(result.gameRoomId)
@@ -188,7 +188,7 @@
 
         result.messages.push({
             msgType: rabbit.messageTypes.s_playerAdded,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.random,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
             gameData: getGameRoomData(message.gameRoomId)
@@ -212,7 +212,7 @@
         result.messages.push({
             msgType: rabbit.messageTypes.s_gameQuit,
             gameRoomId: message.gameRoomId,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.random,
         });
 
         callbacks.onGameRoomsUpdated();
@@ -234,7 +234,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.random
             });
 
         } else {
@@ -271,7 +271,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.random,
                 tiles: randomGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
@@ -305,7 +305,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.random,
                 gameData: getGameRoomData(message.gameRoomId)
             });
         }
@@ -342,7 +342,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.random,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 

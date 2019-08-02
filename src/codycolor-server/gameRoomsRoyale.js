@@ -91,7 +91,7 @@
         if (!result.success) {
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameResponse,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 code: '0000',
                 correlationId: message.correlationId,
             });
@@ -129,7 +129,7 @@
         // crea i messaggi di risposta
         result.messages.push({
             msgType: rabbit.messageTypes.s_gameResponse,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.royale,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             code: royaleGameRooms[result.gameRoomId].gameData.code,
@@ -140,7 +140,7 @@
         if (royaleGameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
             result.messages.push({
                 msgType: rabbit.messageTypes.s_playerAdded,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
                 gameData: getGameRoomData(result.gameRoomId)
@@ -166,7 +166,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.royale
             });
             return result;
         }
@@ -177,7 +177,7 @@
         result.success = true;
         result.messages.push({
             msgType: rabbit.messageTypes.s_playerAdded,
-            gameType: message.gameType,
+            gameType: gameRoomsUtils.gameTypes.royale,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
             gameData: getGameRoomData(message.gameRoomId)
@@ -221,8 +221,8 @@
                 gameData: getGameRoomData(gameRoomId)
             });
 
-            if (royaleGameRooms[message.gameRoomId].gameData.matchCount === 0)
-                callbacks.createDbGameSession(royaleGameRooms[message.gameRoomId]);
+            if (royaleGameRooms[gameRoomId].gameData.matchCount === 0)
+                callbacks.createDbGameSession(royaleGameRooms[gameRoomId]);
 
         } else {
             clearGameRoom(gameRoomId);
@@ -249,7 +249,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.royale
             });
 
             return result;
@@ -270,7 +270,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
             });
 
         } else {
@@ -278,7 +278,7 @@
                 msgType: rabbit.messageTypes.s_playerRemoved,
                 gameRoomId: message.gameRoomId,
                 removedPlayerId: message.playerId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
@@ -291,7 +291,7 @@
                 result.messages.push({
                     msgType: rabbit.messageTypes.s_startMatch,
                     gameRoomId: message.gameRoomId,
-                    gameType: message.gameType,
+                    gameType: gameRoomsUtils.gameTypes.royale,
                     tiles: royaleGameRooms[message.gameRoomId].gameData.tiles,
                     gameData: getGameRoomData(message.gameRoomId)
                 });
@@ -300,7 +300,7 @@
                 result.messages.push({
                     msgType: rabbit.messageTypes.s_startAnimation,
                     gameRoomId: message.gameRoomId,
-                    gameType: message.gameType,
+                    gameType: gameRoomsUtils.gameTypes.royale,
                     gameData: getGameRoomData(message.gameRoomId)
                 });
             } else if (endMatchCheck(message.gameRoomId)) {
@@ -310,7 +310,7 @@
                 result.messages.push({
                     msgType: rabbit.messageTypes.s_endMatch,
                     gameRoomId: message.gameRoomId,
-                    gameType: message.gameType,
+                    gameType: gameRoomsUtils.gameTypes.royale,
                     gameData: getGameRoomData(message.gameRoomId)
                 });
             }
@@ -335,7 +335,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.royale
             });
 
             return result;
@@ -372,7 +372,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 tiles: royaleGameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
@@ -386,7 +386,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType
+                gameType: gameRoomsUtils.gameTypes.royale
             });
         }
 
@@ -413,7 +413,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 gameData: getGameRoomData(message.gameRoomId)
             });
         }
@@ -449,7 +449,7 @@
             result.messages.push({
                 msgType: rabbit.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: message.gameType,
+                gameType: gameRoomsUtils.gameTypes.royale,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
