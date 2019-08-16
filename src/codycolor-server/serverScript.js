@@ -365,7 +365,7 @@ rabbit.connect({
 
 
 // imposta callback utilizzati dalle game rooms
-commonCallbacks = {
+gameRoomCallbacks = {
     onGameRoomsUpdated: function () {
         // callback invocato ogniqualvolta viene aggiunto o rimosso un giocatore a una gameRoom.
         // Invia un messaggio generalInfo al topic general, cosi' da aggiornare in particolare i client sul
@@ -460,23 +460,17 @@ commonCallbacks = {
                 }
             }
         });
-    }
-};
-
-randomGameRooms.setCallbacks(commonCallbacks);
-customGameRooms.setCallbacks(commonCallbacks);
-royaleGameRooms.setCallbacks({
-    onHeartbeatExpired: commonCallbacks.onHeartbeatExpired,
-    createDbGameMatch: commonCallbacks.createDbGameMatch,
-    createDbGameSession: commonCallbacks.createDbGameSession,
-    onGameRoomsUpdated: commonCallbacks.onGameRoomsUpdated,
-    onStartTimerExpired: function (gameRoomId) {
+    }, onStartTimerExpired: function (gameRoomId) {
         utils.printLog("Start timer of royale game room expired");
         let result = royaleGameRooms.directStartMatch(gameRoomId);
         sendMessages(result.messages);
         utils.printWaiting();
     }
-});
+};
+
+randomGameRooms.setCallbacks(gameRoomCallbacks);
+customGameRooms.setCallbacks(gameRoomCallbacks);
+royaleGameRooms.setCallbacks(gameRoomCallbacks);
 
 
 let getGameRoomHandler = function(gameType) {

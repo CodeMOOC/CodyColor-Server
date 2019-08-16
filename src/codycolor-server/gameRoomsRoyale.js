@@ -8,12 +8,21 @@
     let gameRoomsUtils = require("./gameRoomsUtils");
     let royaleGameRooms = [];
     let callbacks = {};
-    
+
+    // ogni secondo si va a controllare se è il momento di avviare una partita
+    let startTimer = setInterval(function () {
+        for (let i = 0; i < royaleGameRooms.length; i++) {
+            if (royaleGameRooms[i].gameData.startDate !== undefined
+                && (royaleGameRooms[i].gameData.startDate - (new Date()).getTime()) <= 0) {
+                callbacks.onStartTimerExpired(i);
+            }
+        }
+    }, 1000);
 
     /* -------------------------------------------------------------------------------------------- *
-    * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
-    * gameRoom dall'esterno del modulo.
-    * -------------------------------------------------------------------------------------------- */
+     * EXPORTED UTILITIES: metodi che forniscono funzioni utili per monitorare lo stato della
+     * gameRoom dall'esterno del modulo.
+     * -------------------------------------------------------------------------------------------- */
 
     // stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function() {
@@ -60,14 +69,14 @@
 
 
     /* -------------------------------------------------------------------------------------------- *
-    * HANDLE METHODS: metodi che permettono di reagire all'arrivo di determinati messaggi. Si
-    * compongono di una struttura comune:
-    *  - Un oggetto 'result' di appoggio viene creato all'inizio della funzione. Questo raccoglie
-    *    dati che verranno utilizzati per la generazione dell'output finale della stessa;
-    *  - Viene modificato il contenuto dell'array gameRooms, a seconda dello scopo della funzione;
-    *  - Ogni funzione di handle restituisce infine l'oggetto result, comprensivo di un array di
-    *    messaggi, poi inviati tramite Rabbit ai rispettivi destinatari.
-    * -------------------------------------------------------------------------------------------- */
+     * HANDLE METHODS: metodi che permettono di reagire all'arrivo di determinati messaggi. Si
+     * compongono di una struttura comune:
+     *  - Un oggetto 'result' di appoggio viene creato all'inizio della funzione. Questo raccoglie
+     *    dati che verranno utilizzati per la generazione dell'output finale della stessa;
+     *  - Viene modificato il contenuto dell'array gameRooms, a seconda dello scopo della funzione;
+     *  - Ogni funzione di handle restituisce infine l'oggetto result, comprensivo di un array di
+     *    messaggi, poi inviati tramite Rabbit ai rispettivi destinatari.
+     * -------------------------------------------------------------------------------------------- */
 
     // aggiunge un riferimento all'utente nel primo slot valido dell'array game room.
     module.exports.handleGameRequest = function (message) {
@@ -117,13 +126,7 @@
             royaleGameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
             royaleGameRooms[result.gameRoomId].gameData.gameName = message.gameName;
             royaleGameRooms[result.gameRoomId].gameData.maxPlayersSetting = message.maxPlayersSetting;
-
-            if (message.startDate !== undefined) {
-                royaleGameRooms[result.gameRoomId].gameData.startDate = message.startDate;
-                setTimeout(function () {
-                    callbacks.onStartTimerExpired(result.gameRoomId);
-                }, message.startDate - (new Date()).getTime());
-            }
+            royaleGameRooms[result.gameRoomId].gameData.startDate = message.startDate;
         }
 
         // crea i messaggi di risposta
