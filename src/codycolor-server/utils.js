@@ -4,7 +4,7 @@
 (function () {
 
     // todo da modificare manualmente ad ogni aggiornamento
-    module.exports.requiredClientVersion  = '3.0.1';
+    module.exports.requiredClientVersion  = '3.0.2';
 
 
     // crea un log formattato in modo corretto
