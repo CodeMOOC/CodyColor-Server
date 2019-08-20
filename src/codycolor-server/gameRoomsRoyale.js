@@ -15,6 +15,7 @@
             if (royaleGameRooms[i].gameData.startDate !== undefined
                 && (royaleGameRooms[i].gameData.startDate - (new Date()).getTime()) <= 0) {
                 callbacks.onStartTimerExpired(i);
+                royaleGameRooms[i].gameData.startDate = undefined;
             }
         }
     }, 1000);
