@@ -10,12 +10,12 @@
     let callbacks = {};
 
     // ogni secondo si va a controllare se è il momento di avviare una partita
-    let startTimer = setInterval(function () {
+    setInterval(function () {
         for (let i = 0; i < royaleGameRooms.length; i++) {
-            if (royaleGameRooms[i].gameData.startDate !== undefined
-                && (royaleGameRooms[i].gameData.startDate - (new Date()).getTime()) <= 0) {
+            if (royaleGameRooms[i].gameData.scheduledStart
+                && (royaleGameRooms[i].startDate - (new Date()).getTime()) <= 0
+                && royaleGameRooms[i].gameData.state === gameRoomsUtils.gameRoomStates.mmaking) {
                 callbacks.onStartTimerExpired(i);
-                royaleGameRooms[i].gameData.startDate = undefined;
             }
         }
     }, 1000);
@@ -110,7 +110,7 @@
 
         // inserisci il giocatore nella game room
         royaleGameRooms[result.gameRoomId].players[result.playerId]
-            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId);
+            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId, message.startDate);
 
         // valida giocatore, se nickname già impostato
         if (message.nickname !== undefined && message.nickname !== "Anonymous") {
@@ -127,7 +127,16 @@
             royaleGameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
             royaleGameRooms[result.gameRoomId].gameData.gameName = message.gameName;
             royaleGameRooms[result.gameRoomId].gameData.maxPlayersSetting = message.maxPlayersSetting;
-            royaleGameRooms[result.gameRoomId].gameData.startDate = message.startDate;
+            royaleGameRooms[result.gameRoomId].startDate = message.startDate;
+            royaleGameRooms[result.gameRoomId].gameData.scheduledStart = message.startDate !== undefined;
+        }
+
+        // nel caso in cui la partita sia ad avvio programmato, calcola i millisecondi mancanti all'avvio
+        // ciò è necessario per impostare un countdown di avvio unico per tutti i client, potendo ogni client
+        // disporre di un clock interno differente
+        let msToStart = undefined;
+        if (royaleGameRooms[result.gameRoomId].gameData.scheduledStart) {
+            msToStart = royaleGameRooms[result.gameRoomId].startDate - (new Date()).getTime();
         }
 
         // crea i messaggi di risposta
@@ -137,6 +146,7 @@
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             code: royaleGameRooms[result.gameRoomId].gameData.code,
+            msToStart: msToStart,
             correlationId: message.correlationId,
             gameData: getGameRoomData(result.gameRoomId)
         });
@@ -269,7 +279,7 @@
         if ((royaleGameRooms[message.gameRoomId].gameData.state !== gameRoomsUtils.gameRoomStates.mmaking
              && countValidPlayers(message.gameRoomId) <= 1)
             || (message.playerId === 0
-                && royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.startDate === undefined
+                && !royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.scheduledStart
                 && royaleGameRooms[message.gameRoomId].gameData.state === gameRoomsUtils.gameRoomStates.mmaking)) {
             clearGameRoom(message.gameRoomId);
             result.messages.push({
@@ -598,16 +608,18 @@
     let generateFreeSlot = function () {
         return {
             occupiedSlot: false,
+            startDate: undefined,
             heartBeatTimer: undefined,
             gameData: generatePlayerGameData()
         };
     };
 
 
-    let generateOccupiedSlot = function (gameRoomId, playerId, userId) {
+    let generateOccupiedSlot = function (gameRoomId, playerId, userId, startDate) {
         return {
             occupiedSlot: true,
             userId: userId,
+            startDate: startDate,
             heartBeatTimer: generateHeartbeatTimer(gameRoomId, playerId),
             gameData: generatePlayerGameData(gameRoomId, playerId)
         };
@@ -740,7 +752,7 @@
             gameName: "RoyaleMatch",
             tiles: undefined,
             timerSetting: 30000,
-            startDate: undefined,
+            scheduledStart: false,
             maxPlayersSetting: 20,
             state: (state !== undefined) ? state : gameRoomsUtils.gameRoomStates.free,
             gameType: gameRoomsUtils.gameTypes.royale,
