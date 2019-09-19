@@ -91,7 +91,9 @@
 
         let organizer = false;
 
-        if (message.code === '0000') {
+        if (message.clientVersion !== utils.requiredClientVersion) {
+           result.success = false;
+        } else if (message.code === '0000') {
             result = addOrganizerPlayer();
             organizer = true;
         } else if (message.code !== undefined)
