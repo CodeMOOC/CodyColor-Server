@@ -259,6 +259,7 @@
             success: false,
             messages: []
         };
+        // success = true -> fai uscire il giocatore
 
         if (!slotExists(message.gameRoomId, message.playerId)) {
             clearGameRoom(message.gameRoomId);
@@ -380,6 +381,14 @@
             messages: []
         };
 
+        // controllo di consistenza messaggio
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !royaleGameRooms[message.gameRoomId].players[message.playerId].occupiedSlot)  {
+            result = module.exports.handlePlayerQuit(message);
+            result.success = false;
+            return result;
+        }
+
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
         result.success = startMatchCheck(message.gameRoomId);
 
@@ -424,6 +433,14 @@
             messages: []
         };
 
+        // controllo di consistenza messaggio
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !royaleGameRooms[message.gameRoomId].players[message.playerId].occupiedSlot)  {
+            result = module.exports.handlePlayerQuit(message);
+            result.success = false;
+            return result;
+        }
+
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
@@ -451,6 +468,14 @@
             messages: []
         };
         // success === true: termina il match
+
+        // controllo di consistenza messaggio
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !royaleGameRooms[message.gameRoomId].players[message.playerId].occupiedSlot)  {
+            result = module.exports.handlePlayerQuit(message);
+            result.success = false;
+            return result;
+        }
 
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
         royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
@@ -631,7 +656,7 @@
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
             callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.royale)
-        }, 10000);
+        }, 15000);
     };
 
 
