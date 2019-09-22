@@ -25,7 +25,7 @@ services:
     - database
 
   database:
-    image: mysql:5.7
+    image: mysql:5.7.27
     networks:
     - backend
     env_file: ./config.env
