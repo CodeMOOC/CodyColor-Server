@@ -375,7 +375,7 @@ gameRoomCallbacks = {
     }, onHeartbeatExpired: function (gameRoomId, playerId, gameType) {
         // allo scadere del timer di heartbeat, elimina il giocatore dalla game room
         utils.printLog('Heartbeat timer of ' + gameRoomId + '[' + playerId + '] in '
-            + gameType + ' game rooms expired, or invalid heartbeat');
+            + gameType + ' game rooms expired, or invalid message');
 
         let gameRoomHandler = getGameRoomHandler(gameType);
         let result = gameRoomHandler.handlePlayerQuit({
