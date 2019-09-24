@@ -282,8 +282,9 @@
         if ((royaleGameRooms[message.gameRoomId].gameData.state !== gameRoomsUtils.gameRoomStates.mmaking
              && countValidPlayers(message.gameRoomId) <= 1)
             || (message.playerId === 0
-                && !royaleGameRooms[message.gameRoomId].players[message.playerId].gameData.scheduledStart
+                && !royaleGameRooms[message.gameRoomId].gameData.scheduledStart
                 && royaleGameRooms[message.gameRoomId].gameData.state === gameRoomsUtils.gameRoomStates.mmaking)) {
+
             clearGameRoom(message.gameRoomId);
             result.messages.push({
                 msgType: rabbit.messageTypes.s_gameQuit,
