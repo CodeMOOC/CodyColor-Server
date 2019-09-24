@@ -225,8 +225,21 @@
         if (countValidPlayers(gameRoomId) > 1) {
             result.success = true;
             for (let i = 0; i < royaleGameRooms[gameRoomId].players.length; i++) {
-                royaleGameRooms[gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+                if (royaleGameRooms[gameRoomId].players[i].gameData.validated) {
+                    royaleGameRooms[gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+
+                } else {
+                    // giocatore non validato; non può accedere alla partita, rimuovilo
+                    let removePlayerResult = module.exports.handlePlayerQuit({
+                        gameRoomId: gameRoomId,
+                        playerId: i
+                    });
+                    for (let i = 0; i < removePlayerResult.messages.length; i++) {
+                        result.messages.push(removePlayerResult.messages[i]);
+                    }
+                }
             }
+
             royaleGameRooms[gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.playing;
             royaleGameRooms[gameRoomId].gameData.tiles = gameRoomsUtils.generateTiles();
             result.messages.push({
@@ -254,7 +267,7 @@
 
     // all'arrivo di un messaggio playerQuit da un client, o della scadenza di un heartbeat,
     // viene rimosso il giocatore dalla gameRoom e notificato l'abbandono agli altri client in ascolto
-    module.exports.handlePlayerQuit = function (message) {
+    module.exports.handlePlayerQuit = function (message, skipChecks) {
         let result = {
             success: false,
             messages: []
@@ -301,7 +314,7 @@
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            if (startMatchCheck(message.gameRoomId)) {
+            if (startMatchCheck(message.gameRoomId) && !(skipChecks !== undefined && skipChecks === true)) {
                 for (let i = 0; i < royaleGameRooms[message.gameRoomId].players.length; i++) {
                     royaleGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
                 }
@@ -395,8 +408,20 @@
 
         if (result.success && countValidPlayers(message.gameRoomId) > 1) {
             for (let i = 0; i < royaleGameRooms[message.gameRoomId].players.length; i++) {
-                royaleGameRooms[message.gameRoomId].players[i].gameData.ready = false;
-                royaleGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+                if (royaleGameRooms[message.gameRoomId].players[i].gameData.validated) {
+                    royaleGameRooms[message.gameRoomId].players[i].gameData.ready = false;
+                    royaleGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+
+                } else {
+                    // giocatore non validato; non può accedere alla partita, rimuovilo
+                    let removePlayerResult = module.exports.handlePlayerQuit({
+                        gameRoomId: message.gameRoomId,
+                        playerId: i
+                    }, true);
+                    for (let i = 0; i < removePlayerResult.messages.length; i++) {
+                        result.messages.push(removePlayerResult.messages[i]);
+                    }
+                }
             }
             royaleGameRooms[message.gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.playing;
             royaleGameRooms[message.gameRoomId].gameData.tiles = gameRoomsUtils.generateTiles();
