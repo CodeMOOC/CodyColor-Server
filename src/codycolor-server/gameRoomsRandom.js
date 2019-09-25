@@ -181,6 +181,20 @@
             success: false,
             messages: []
         };
+        // success === true: il giocatore valida il proprio nickname
+
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.random
+            });
+
+            return result;
+        }
 
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
@@ -205,6 +219,7 @@
             success: false,
             messages: []
         };
+        // success === true: il giocatore esce e chiude la partita
 
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         clearGameRoom(message.gameRoomId);
@@ -228,6 +243,7 @@
             success: false,
             messages: []
         };
+        // success === true: il giocatore rinnova l'heartbeat
 
         if (!slotExists(message.gameRoomId, message.playerId)) {
             clearGameRoom(message.gameRoomId);
@@ -256,6 +272,20 @@
             success: false,
             messages: []
         };
+        // success === true: avvia un nuovo match
+
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.random
+            });
+
+            return result;
+        }
 
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
         result.success = startMatchCheck(message.gameRoomId);
@@ -294,6 +324,20 @@
             success: false,
             messages: []
         };
+        // success === true: avvia l'animazione
+
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.random
+            });
+
+            return result;
+        }
 
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
@@ -322,6 +366,19 @@
             messages: []
         };
         // success === true: termina il match
+
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.random
+            });
+
+            return result;
+        }
 
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
         randomGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
