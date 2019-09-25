@@ -7,6 +7,7 @@
     let utils = require('./utils');
     let gameRoomsUtils = require('./gameRoomsUtils');
     let stomp = require('stompjs');
+    let LZUTF8 = require('lzutf8');
 
     let client;
     let connected = false;
@@ -109,6 +110,13 @@
     module.exports.sendInClientControlQueue = function(correlationId, message) {
         // aggiunge un id univoco al messaggio
         message.msgId = (Math.floor(Math.random() * 100000)).toString();
+
+        // compressione gameData
+        if (message.gameData !== undefined) {
+            message.gameData = LZUTF8.compress(JSON.stringify(message.gameData),
+                {outputEncoding: 'StorageBinaryString'});
+        }
+
         client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
         utils.printLog(`Sent ${message.msgType} in client queue`);
     };
@@ -117,6 +125,13 @@
     // invia un messaggio nel topic generale, topic al quale sono in ascolto tutti i client
     module.exports.sendInGeneralTopic = function(message) {
         message.msgId = (Math.floor(Math.random() * 100000)).toString();
+
+        // compressione gameData
+        if (message.gameData !== undefined) {
+            message.gameData = LZUTF8.compress(JSON.stringify(message.gameData),
+                {outputEncoding: 'StorageBinaryString'});
+        }
+
         client.send(endpoints.generalTopic, {}, JSON.stringify(message));
         utils.printLog(`Sent ${message.msgType} in general topic`);
     };
@@ -124,6 +139,13 @@
 
     // invia messaggio nel topic di una specifica game room
     module.exports.sendInGameRoomTopic = function(message) {
+
+        // compressione gameData
+        if (message.gameData !== undefined) {
+            message.gameData = LZUTF8.compress(JSON.stringify(message.gameData),
+                {outputEncoding: 'StorageBinaryString'});
+        }
+
         client.send(getGameRoomEndpoint(message.gameType, message.gameRoomId), {}, JSON.stringify(message));
         utils.printLog(
             `Sent ${message.msgType} in ${message.gameType} game room ${message.gameRoomId}`);
