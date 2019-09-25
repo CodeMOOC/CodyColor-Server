@@ -154,6 +154,19 @@
             messages: []
         };
 
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.custom
+            });
+
+            return result;
+        }
+
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
 
@@ -230,6 +243,19 @@
             messages: []
         };
 
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.custom
+            });
+
+            return result;
+        }
+
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
         result.success = startMatchCheck(message.gameRoomId);
 
@@ -265,6 +291,19 @@
             messages: []
         };
 
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.custom
+            });
+
+            return result;
+        }
+
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
@@ -292,6 +331,19 @@
             messages: []
         };
         // success === true: termina il match
+
+        // controllo di consistenza
+        if (!slotExists(message.gameRoomId, message.playerId)) {
+            clearGameRoom(message.gameRoomId);
+            result.success = false;
+            result.messages.push({
+                msgType: rabbit.messageTypes.s_gameQuit,
+                gameRoomId: message.gameRoomId,
+                gameType: gameRoomsUtils.gameTypes.custom
+            });
+
+            return result;
+        }
 
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
         customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
