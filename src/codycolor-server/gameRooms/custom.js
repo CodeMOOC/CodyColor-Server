@@ -249,6 +249,7 @@
             success: false,
             messages: []
         };
+        // success === true: avvia un nuovo match
 
         // controllo preliminare messaggio: se lo slot non è occupied, non esiste, non è validato,
         // si è in playing, fai uscire il giocatore dalla game room, notificandolo eventualmente all'avversario
@@ -301,7 +302,7 @@
         if (!slotExists(message.gameRoomId, message.playerId) ||
             !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot ||
             !gameRooms[message.gameRoomId].players[message.playerId].gameData.validated ||
-            gameRooms[message.gameRoomId].gameData.state === utils.states.playing)  {
+            gameRooms[message.gameRoomId].gameData.state !== utils.states.playing)  {
             result = module.exports.handlePlayerQuit(message);
             result.success = false;
             return result;
