@@ -1,10 +1,7 @@
 /*
- * gameRoomsUtils.js: metodi comuni utilizzati in più tipologie di game room
+ * gameRooms/gameRoomsUtils.js: metodi comuni utilizzati in più tipologie di game room
  */
 (function () {
-    let utils = require("./utils");
-    let commonCallbacks = {};
-
     // costanti utilizzate per tener traccia della tipologia di game room
     module.exports.gameTypes = {
         custom: 'custom',
@@ -14,48 +11,11 @@
 
 
     // costanti utilizzate per tener traccia dello stato attuale di ogni game room
-    module.exports.gameRoomStates = {
+    module.exports.states = {
         mmaking:    'mmaking',
         playing:    'playing',
         aftermatch: 'aftermatch',
         free:       'free'
-    };
-
-
-    // inizializza i callbacks utilizzati in molteplici tipologie di game room
-    module.exports.setCommonCallbacks = function (newCallbacks) {
-        commonCallbacks = newCallbacks;
-    };
-
-
-    // esponi all'esterno i callbacks di cui sopra
-    module.exports.commonCallbacks = commonCallbacks;
-
-
-
-    // algoritmo per la stampa a console lo stato attuale delle game room
-    module.exports.printGameRooms = function (gameRooms) {
-        utils.printLog(false, 'New ' + gameRooms.gameData.gameType +' game room configuration:');
-
-        if (gameRooms.length <= 0) {
-            utils.printLog(false, 'empty');
-
-        } else {
-            let gameRoomString = '';
-            for (let gameRoomIndex = 0; gameRoomIndex < gameRooms.length; gameRoomIndex++) {
-                gameRoomString += gameRoomIndex.toString() + '[';
-                for (let playerIndex = 0; playerIndex < gameRooms[gameRoomIndex].players.length; playerIndex++) {
-                    gameRoomString += (gameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
-                }
-                gameRoomString += '] ';
-                if (gameRoomIndex % 4 === 0 && gameRoomIndex !== 0) {
-                    utils.printLog(false, gameRoomString);
-                    gameRoomString = '';
-                }
-            }
-            if (gameRoomString !== '')
-                utils.printLog(false, gameRoomString);
-        }
     };
 
 

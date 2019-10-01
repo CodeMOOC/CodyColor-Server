@@ -1,11 +1,14 @@
 /*
- * gameRoomsCustom.js: file per la gestione dell'array gameRoom ad accoppiamento personalizzato dei giocatori.
+ * custom.js: file per la gestione dell'array gameRoom ad accoppiamento personalizzato dei giocatori.
  */
 (function () {
-    let rabbit = require("./rabbit");
-    let utils = require("./utils");
-    let gameRoomsUtils = require("./gameRoomsUtils");
-    let customGameRooms = [];
+    let broker = require("../communication/broker");
+    let logs = require("../communication/logs");
+    let utils = require("./gameRoomsUtils");
+    let pjson = require('../package.json');
+
+    let requiredClientVersion  = pjson.version.toString();
+    let gameRooms = [];
     let callbacks = {};
 
 
@@ -16,26 +19,26 @@
 
     // stampa a console lo stato attuale delle game room
     module.exports.printGameRooms = function() {
-        utils.printLog('New custom game room configuration:');
+        logs.printLog('New custom game room configuration:');
 
-        if (customGameRooms.length <= 0) {
-            utils.printLog('empty');
+        if (gameRooms.length <= 0) {
+            logs.printLog('empty');
 
         } else {
             let gameRoomString = '';
-            for (let gameRoomIndex = 0; gameRoomIndex < customGameRooms.length; gameRoomIndex++) {
+            for (let gameRoomIndex = 0; gameRoomIndex < gameRooms.length; gameRoomIndex++) {
                 gameRoomString += gameRoomIndex.toString() + '[';
-                for (let playerIndex = 0; playerIndex < customGameRooms[gameRoomIndex].players.length; playerIndex++) {
-                    gameRoomString += (customGameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
+                for (let playerIndex = 0; playerIndex < gameRooms[gameRoomIndex].players.length; playerIndex++) {
+                    gameRoomString += (gameRooms[gameRoomIndex].players[playerIndex].occupiedSlot ? 'x' : 'o');
                 }
                 gameRoomString += '] ';
                 if ((gameRoomIndex + 1) % 4 === 0) {
-                    utils.printLog(gameRoomString);
+                    logs.printLog(gameRoomString);
                     gameRoomString = '';
                 }
             }
             if (gameRoomString !== '')
-                utils.printLog(gameRoomString);
+                logs.printLog(gameRoomString);
         }
     };
 
@@ -43,9 +46,9 @@
     // restituisce il numero di giocatori validati presenti
     module.exports.getConnectedPlayers = function () {
         let connectedPlayers = 0;
-        for (let i = 0; i < customGameRooms.length; i++) {
-            for (let j = 0; j < customGameRooms[i].players.length; j++)
-                if (customGameRooms[i].players[j].occupiedSlot)
+        for (let i = 0; i < gameRooms.length; i++) {
+            for (let j = 0; j < gameRooms[i].players.length; j++)
+                if (gameRooms[i].players[j].occupiedSlot)
                     connectedPlayers++;
         }
         return connectedPlayers;
@@ -81,59 +84,66 @@
 
         let organizer = false;
 
-        if (message.clientVersion !== utils.requiredClientVersion) {
+        if (message.clientVersion !== requiredClientVersion) {
+            // accetta la richiesta solo nel caso in cui il client sia aggiornato
             result.success = false;
+
         } else if (message.code === '0000') {
-            organizer = true;
+            // code 0000 nella richiesta: il client vuole creare una nuova partita
             result = addOrganizerPlayer();
-        } else if (message.code !== undefined)
+            organizer = true;
+
+        } else if (message.code !== undefined) {
+            // il client è stato invitato: controlla validità codice; nel caso aggiungilo
             result = addInvitedPlayer(message.code);
+        }
 
         // codice non valido: invia response con codice 0000
         if (!result.success) {
             result.messages.push({
-                msgType: rabbit.messageTypes.s_gameResponse,
-                gameType: gameRoomsUtils.gameTypes.custom,
+                msgType: broker.messageTypes.s_gameResponse,
+                gameType: utils.gameTypes.custom,
                 code: '0000',
                 correlationId: message.correlationId,
             });
             return result;
         }
 
-        // inserisci il giocatore nella game room
-        customGameRooms[result.gameRoomId].players[result.playerId]
+        // se si arriva a questo punto, il giocatore ha il permesso di occupare lo slot, e configurare la game room.
+        // Aggiungi quindi il giocatore e genera il messaggio di risposta
+        gameRooms[result.gameRoomId].players[result.playerId]
             = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId);
 
         // valida giocatore, se nickname già impostato
         if (message.nickname !== undefined && message.nickname !== "Anonymous") {
-            customGameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.nickname;
-            customGameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.nickname;
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
         }
 
         // imposta vari gameData
-        customGameRooms[result.gameRoomId].gameData.gameRoomId = result.gameRoomId;
-        customGameRooms[result.gameRoomId].players[result.playerId].gameData.playerId = result.playerId;
+        gameRooms[result.gameRoomId].gameData.gameRoomId = result.gameRoomId;
+        gameRooms[result.gameRoomId].players[result.playerId].gameData.playerId = result.playerId;
 
         if (organizer) {
-            customGameRooms[result.gameRoomId].players[0].gameData.organizer = true;
-            customGameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
+            gameRooms[result.gameRoomId].players[0].gameData.organizer = true;
+            gameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
         }
 
         // crea i messaggi di risposta
         result.messages.push({
-            msgType: rabbit.messageTypes.s_gameResponse,
-            gameType: gameRoomsUtils.gameTypes.custom,
+            msgType: broker.messageTypes.s_gameResponse,
+            gameType: utils.gameTypes.custom,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
-            code: customGameRooms[result.gameRoomId].gameData.code,
+            code: gameRooms[result.gameRoomId].gameData.code,
             correlationId: message.correlationId,
             gameData: getGameRoomData(result.gameRoomId)
         });
 
-        if (customGameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
+        if (gameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
             result.messages.push({
-                msgType: rabbit.messageTypes.s_playerAdded,
-                gameType: gameRoomsUtils.gameTypes.custom,
+                msgType: broker.messageTypes.s_playerAdded,
+                gameType: utils.gameTypes.custom,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
                 gameData: getGameRoomData(result.gameRoomId)
@@ -154,26 +164,24 @@
             messages: []
         };
 
-        // controllo di consistenza
-        if (!slotExists(message.gameRoomId, message.playerId)) {
-            clearGameRoom(message.gameRoomId);
+        // controllo preliminare messaggio: se lo slot non è occupied, non esiste, è validato, o non si è in mmaking,
+        // fai uscire il giocatore dalla game room, notificandolo eventualmente all'avversario
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot ||
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.validated ||
+            gameRooms[message.gameRoomId].gameData.state !== utils.states.mmaking)  {
+            result = module.exports.handlePlayerQuit(message);
             result.success = false;
-            result.messages.push({
-                msgType: rabbit.messageTypes.s_gameQuit,
-                gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom
-            });
-
             return result;
         }
 
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
 
         result.success = true;
         result.messages.push({
-            msgType: rabbit.messageTypes.s_playerAdded,
-            gameType: gameRoomsUtils.gameTypes.custom,
+            msgType: broker.messageTypes.s_playerAdded,
+            gameType: utils.gameTypes.custom,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
             gameData: getGameRoomData(message.gameRoomId)
@@ -190,14 +198,15 @@
             success: false,
             messages: []
         };
+        // success === true: fai uscire il giocatore
 
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         clearGameRoom(message.gameRoomId);
         result.success = true;
         result.messages.push({
-            msgType: rabbit.messageTypes.s_gameQuit,
+            msgType: broker.messageTypes.s_gameQuit,
             gameRoomId: message.gameRoomId,
-            gameType: gameRoomsUtils.gameTypes.custom,
+            gameType: utils.gameTypes.custom,
         });
 
         callbacks.onGameRoomsUpdated();
@@ -214,23 +223,21 @@
             messages: []
         };
 
-        if (!slotExists(message.gameRoomId, message.playerId)) {
-            clearGameRoom(message.gameRoomId);
-            result.messages.push({
-                msgType: rabbit.messageTypes.s_gameQuit,
-                gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom
-            });
-
-        } else {
-            clearTimeout(customGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
-            customGameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer
-                = generateHeartbeatTimer(message.gameRoomId, message.playerId);
-            result.success = true;
+        // controllo preliminare messaggio
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot) {
+            result = module.exports.handlePlayerQuit(message);
+            result.success = false;
+            return result;
         }
 
-        return result;
+        // heartbeat valido; resetta timer
+        clearTimeout(gameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
+        gameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer
+            = generateHeartbeatTimer(message.gameRoomId, message.playerId);
+        result.success = true;
 
+        return result;
     };
 
 
@@ -243,39 +250,37 @@
             messages: []
         };
 
-        // controllo di consistenza
-        if (!slotExists(message.gameRoomId, message.playerId)) {
-            clearGameRoom(message.gameRoomId);
+        // controllo preliminare messaggio: se lo slot non è occupied, non esiste, non è validato,
+        // si è in playing, fai uscire il giocatore dalla game room, notificandolo eventualmente all'avversario
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot ||
+            !gameRooms[message.gameRoomId].players[message.playerId].gameData.validated ||
+            gameRooms[message.gameRoomId].gameData.state === utils.states.playing)  {
+            result = module.exports.handlePlayerQuit(message);
             result.success = false;
-            result.messages.push({
-                msgType: rabbit.messageTypes.s_gameQuit,
-                gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom
-            });
-
             return result;
         }
 
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.ready = true;
         result.success = startMatchCheck(message.gameRoomId);
 
         if (result.success) {
-            for (let i = 0; i < customGameRooms[message.gameRoomId].players.length; i++) {
-                customGameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
-                customGameRooms[message.gameRoomId].players[i].gameData.ready = false;
+            for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
+                gameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
+                gameRooms[message.gameRoomId].players[i].gameData.ready = false;
             }
-            customGameRooms[message.gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.playing;
-            customGameRooms[message.gameRoomId].gameData.tiles = gameRoomsUtils.generateTiles();
+            gameRooms[message.gameRoomId].gameData.state = utils.states.playing;
+            gameRooms[message.gameRoomId].gameData.tiles = utils.generateTiles();
             result.messages.push({
-                msgType: rabbit.messageTypes.s_startMatch,
+                msgType: broker.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom,
-                tiles: customGameRooms[message.gameRoomId].gameData.tiles,
+                gameType: utils.gameTypes.custom,
+                tiles: gameRooms[message.gameRoomId].gameData.tiles,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            if (customGameRooms[message.gameRoomId].gameData.matchCount === 0)
-                callbacks.createDbGameSession(customGameRooms[message.gameRoomId]);
+            if (gameRooms[message.gameRoomId].gameData.matchCount === 0)
+                callbacks.createDbGameSession(gameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -291,30 +296,28 @@
             messages: []
         };
 
-        // controllo di consistenza
-        if (!slotExists(message.gameRoomId, message.playerId)) {
-            clearGameRoom(message.gameRoomId);
+        // controllo preliminare messaggio: se lo slot non è occupied, non esiste, non è validato,
+        // si è in playing, fai uscire il giocatore dalla game room, notificandolo eventualmente all'avversario
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot ||
+            !gameRooms[message.gameRoomId].players[message.playerId].gameData.validated ||
+            gameRooms[message.gameRoomId].gameData.state === utils.states.playing)  {
+            result = module.exports.handlePlayerQuit(message);
             result.success = false;
-            result.messages.push({
-                msgType: rabbit.messageTypes.s_gameQuit,
-                gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom
-            });
-
             return result;
         }
 
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.distance = message.distance;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.distance = message.distance;
         result.success = startAnimationCheck(message.gameRoomId);
 
         if (result.success) {
             result.messages.push({
-                msgType: rabbit.messageTypes.s_startAnimation,
+                msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom,
+                gameType: utils.gameTypes.custom,
                 gameData: getGameRoomData(message.gameRoomId)
             });
         }
@@ -332,43 +335,41 @@
         };
         // success === true: termina il match
 
-        // controllo di consistenza
-        if (!slotExists(message.gameRoomId, message.playerId)) {
-            clearGameRoom(message.gameRoomId);
+        // controllo preliminare messaggio: se lo slot non è occupied, non esiste, non è validato,
+        // si è in playing, fai uscire il giocatore dalla game room, notificandolo eventualmente all'avversario
+        if (!slotExists(message.gameRoomId, message.playerId) ||
+            !gameRooms[message.gameRoomId].players[message.playerId].occupiedSlot ||
+            !gameRooms[message.gameRoomId].players[message.playerId].gameData.validated ||
+            gameRooms[message.gameRoomId].gameData.state !== utils.states.playing)  {
+            result = module.exports.handlePlayerQuit(message);
             result.success = false;
-            result.messages.push({
-                msgType: rabbit.messageTypes.s_gameQuit,
-                gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom
-            });
-
             return result;
         }
 
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.points
-            += customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.points;
-        customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = message.pathLength;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.points
+            += gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = message.pathLength;
 
         if (message.winner) {
-            customGameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
-            customGameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
         }
         result.success = endMatchCheck(message.gameRoomId);
 
         if (result.success) {
-            customGameRooms[message.gameRoomId].gameData.state = gameRoomsUtils.gameRoomStates.aftermatch;
-            customGameRooms[message.gameRoomId].gameData.matchCount++;
+            gameRooms[message.gameRoomId].gameData.state = utils.states.aftermatch;
+            gameRooms[message.gameRoomId].gameData.matchCount++;
 
             result.messages.push({
-                msgType: rabbit.messageTypes.s_endMatch,
+                msgType: broker.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
-                gameType: gameRoomsUtils.gameTypes.custom,
+                gameType: utils.gameTypes.custom,
                 gameData: getGameRoomData(message.gameRoomId)
             });
 
-            callbacks.createDbGameMatch(customGameRooms[message.gameRoomId]);
+            callbacks.createDbGameMatch(gameRooms[message.gameRoomId]);
         }
 
         return result;
@@ -388,8 +389,8 @@
         };
 
         // cerca il primo slot libero tra le gameRoom
-        for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
-            if (customGameRooms[gRoomIndex].state === gameRoomsUtils.gameRoomStates.free) {
+        for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
+            if (gameRooms[gRoomIndex].state === utils.states.free) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 0;
                 result.success = true;
@@ -398,11 +399,11 @@
 
         // non c'è uno slot libero: crea una nuova game room
         if (result.gameRoomId === undefined && result.playerId === undefined) {
-            result.gameRoomId = customGameRooms.length;
+            result.gameRoomId = gameRooms.length;
             result.playerId = 0;
             result.success = true;
-            customGameRooms.push(
-                generateGameRoom(result.gameRoomId, gameRoomsUtils.gameRoomStates.mmaking)
+            gameRooms.push(
+                generateGameRoom(result.gameRoomId, utils.states.mmaking)
             );
         }
 
@@ -419,10 +420,10 @@
             messages: []
         };
 
-        for (let gRoomIndex = 0; gRoomIndex < customGameRooms.length; gRoomIndex++) {
-            if (customGameRooms[gRoomIndex].gameData.code.toString() === invitationCode.toString()
-                && customGameRooms[gRoomIndex].gameData.state === gameRoomsUtils.gameRoomStates.mmaking
-                && !customGameRooms[gRoomIndex].players[1].occupiedSlot) {
+        for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
+            if (gameRooms[gRoomIndex].gameData.code.toString() === invitationCode.toString()
+                && gameRooms[gRoomIndex].gameData.state === utils.states.mmaking
+                && !gameRooms[gRoomIndex].players[1].occupiedSlot) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 1;
                 result.success = true;
@@ -436,18 +437,18 @@
     let clearGameRoom = function(gameRoomId) {
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         if (gameRoomExists(gameRoomId)) {
-            for (let j = 0; j < customGameRooms[gameRoomId].players.length; j++) {
-                if (customGameRooms[gameRoomId].players[j].heartBeatTimer !== undefined)
-                    clearTimeout(customGameRooms[gameRoomId].players[j].heartBeatTimer);
+            for (let j = 0; j < gameRooms[gameRoomId].players.length; j++) {
+                if (gameRooms[gameRoomId].players[j].heartBeatTimer !== undefined)
+                    clearTimeout(gameRooms[gameRoomId].players[j].heartBeatTimer);
             }
 
-            customGameRooms[gameRoomId] = generateGameRoom(gameRoomId, gameRoomsUtils.gameRoomStates.free);
+            gameRooms[gameRoomId] = generateGameRoom(gameRoomId, utils.states.free);
         }
 
         // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
-        for (let i = customGameRooms.length - 1; i >= 0; i--) {
-            if (customGameRooms[i].gameData.state === gameRoomsUtils.gameRoomStates.free)
-                customGameRooms.splice(i, 1);
+        for (let i = gameRooms.length - 1; i >= 0; i--) {
+            if (gameRooms[i].gameData.state === utils.states.free)
+                gameRooms.splice(i, 1);
             else
                 break;
         }
@@ -455,13 +456,13 @@
 
 
     let slotExists = function (gameRoomId, playerId) {
-        return customGameRooms[gameRoomId] !== undefined
-            && customGameRooms[gameRoomId].players[playerId] !== undefined;
+        return gameRooms[gameRoomId] !== undefined
+            && gameRooms[gameRoomId].players[playerId] !== undefined;
     };
 
 
     let gameRoomExists = function (gameRoomId) {
-        return customGameRooms[gameRoomId] !== undefined;
+        return gameRooms[gameRoomId] !== undefined;
     };
 
 
@@ -495,20 +496,20 @@
 
     let generateHeartbeatTimer = function (gameRoomId, playerId) {
         return setTimeout(function () {
-            callbacks.onHeartbeatExpired(gameRoomId, playerId, gameRoomsUtils.gameTypes.custom)
-        }, 10000);
+            callbacks.onHeartbeatExpired(gameRoomId, playerId, utils.gameTypes.custom)
+        }, 15000);
     };
 
 
     let getGameRoomData = function (gameRoomId) {
         if (gameRoomExists(gameRoomId)) {
             let gRoomData = {};
-            gRoomData.general = customGameRooms[gameRoomId].gameData;
+            gRoomData.general = gameRooms[gameRoomId].gameData;
             gRoomData.players = [];
-            for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
-                if (customGameRooms[gameRoomId].players[i].occupiedSlot  &&
-                    customGameRooms[gameRoomId].players[i].gameData.validated)
-                    gRoomData.players.push(customGameRooms[gameRoomId].players[i].gameData)
+            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+                if (gameRooms[gameRoomId].players[i].occupiedSlot  &&
+                    gameRooms[gameRoomId].players[i].gameData.validated)
+                    gRoomData.players.push(gameRooms[gameRoomId].players[i].gameData)
             }
             return gRoomData;
         }
@@ -521,9 +522,9 @@
         }
 
         let allReady = true;
-        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
-            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
-                !customGameRooms[gameRoomId].players[i].gameData.ready) {
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (gameRooms[gameRoomId].players[i].occupiedSlot &&
+                !gameRooms[gameRoomId].players[i].gameData.ready) {
                 allReady = false;
                 break;
             }
@@ -539,9 +540,9 @@
         }
 
         let allPositioned = true;
-        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
-            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
-                !customGameRooms[gameRoomId].players[i].gameData.match.positioned) {
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (gameRooms[gameRoomId].players[i].occupiedSlot &&
+                !gameRooms[gameRoomId].players[i].gameData.match.positioned) {
                 allPositioned = false;
                 break;
             }
@@ -557,9 +558,9 @@
         }
 
         let allAnimationFinished = true;
-        for (let i = 0; i < customGameRooms[gameRoomId].players.length; i++) {
-            if (customGameRooms[gameRoomId].players[i].occupiedSlot &&
-                !customGameRooms[gameRoomId].players[i].gameData.match.animationEnded) {
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (gameRooms[gameRoomId].players[i].occupiedSlot &&
+                !gameRooms[gameRoomId].players[i].gameData.match.animationEnded) {
                 allAnimationFinished = false;
                 break;
             }
@@ -609,10 +610,10 @@
             gameRoomId: (gameRoomId !== undefined) ? gameRoomId : -1,
             matchCount: 0,
             tiles: undefined,
-            state: (state !== undefined) ? state : gameRoomsUtils.gameRoomStates.free,
+            state: (state !== undefined) ? state : utils.states.free,
             timerSetting: 30000,
-            gameType: gameRoomsUtils.gameTypes.custom,
-            code: gameRoomsUtils.generateUniqueCode(customGameRooms)
+            gameType: utils.gameTypes.custom,
+            code: utils.generateUniqueCode(gameRooms)
         }
     };
 }());

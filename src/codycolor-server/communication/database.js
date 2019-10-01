@@ -3,7 +3,7 @@
  */
 (function () {
     let mysql = require('mysql');
-    let utils = require("./utils");
+    let utils = require("./logs");
 
     const pool = mysql.createPool({
         connectionLimit: 10,

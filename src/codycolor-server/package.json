@@ -1,10 +1,10 @@
 {
     "name": "codycolor-server",
-    "version": "1.0.0",
+    "version": "3.0.11",
     "description": "CodyColor server component",
-    "main": "serverScript.js",
+    "main": "app.js",
     "scripts": {
-        "start": "node serverScript.js"
+        "start": "node app.js"
     },
     "dependencies": {
         "debug": "~2.6.9",
