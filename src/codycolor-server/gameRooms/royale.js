@@ -433,7 +433,7 @@
                     gameRooms[message.gameRoomId].players[i].gameData.ready = false;
                     gameRooms[message.gameRoomId].players[i].gameData.match = generateEmptyPlayerMatch();
 
-                } else if (gameRooms[message.gameRoomId].players[i].gameData.occupiedSlot) {
+                } else if (gameRooms[message.gameRoomId].players[i].occupiedSlot) {
                     // giocatore che ha occupato lo slot, ma non è validato; non può accedere alla partita
                     let quitResult = module.exports.handlePlayerQuit({
                         gameRoomId: message.gameRoomId,
