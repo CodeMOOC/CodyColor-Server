@@ -5,7 +5,7 @@
 * the **back-end**, composed by a message broker and a NodeJS executable; all the back-end code is contained and handled in a Docker infrastructure;
 * the **front-end**, composed by [a web app](https://github.com/digit-srl/CodyColorClient) developed on the AngularJS framework.
 
-![CodyColor Multiplayer Component Diagram](docs/CodyColorComponents.png)
+![CodyColor Multiplayer Component Diagram](docs/CodyColorComponents.jpeg)
 
 This repository includes all the files that form the back-end system of the game.
 
@@ -22,8 +22,8 @@ make up
 
 ## NodeJS code organization
 
-Referring to the NodeJS executable, it is possible to visualize relations between the various modules using the following class diagram. 
+It is possible to visualize relations between the various modules using the following class diagram. 
 
-![CodyColor Multiplayer Server Class Diagram](docs/ServerDiagram.png)
+![CodyColor Multiplayer Server Class Diagram](docs/ServerDiagram.jpeg)
 
 It is important to underline that the code is not divided in class (even because JavaScript does not completely support OOP), and the diagram does not reports all methods and attributes contained in the modules. Nevertheless, the diagram is very useful to understand the dependencies between the various modules, and to know how the various featues are organized inside the script.
