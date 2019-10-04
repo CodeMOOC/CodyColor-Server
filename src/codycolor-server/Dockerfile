@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm install
 
 # Install app
-COPY *.js ./
+COPY / ./
 
 # Run Node
 CMD [ "npm", "start" ]

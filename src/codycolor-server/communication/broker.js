@@ -1,11 +1,11 @@
 /*
- * rabbit.js: file utilizzato per gestire la comunicazione con il broker, tramite il modulo stompJs.
+ * broker.js: file utilizzato per gestire la comunicazione con il broker, tramite il modulo stompJs.
  * Espone dei metodi che rappresentano le operazioni base di interazione server-broker dell'applicazione.
  */
 (function () {
 
-    let utils = require('./utils');
-    let gameRoomsUtils = require('./gameRoomsUtils');
+    let logs = require('./logs');
+    let gameRoomsUtils = require('../gameRooms/gameRoomsUtils');
     let stomp = require('stompjs');
     let LZUTF8 = require('lzutf8');
 
@@ -78,7 +78,7 @@
         if (callbacks !== undefined)
             onMessageCallbacks = callbacks;
 
-        utils.printLog(`Initializing StompJs API at ${stompUrl}...`);
+        logs.printLog(`Initializing StompJs API at ${stompUrl}...`);
         client = stomp.overWS(stompUrl);
         client.connect(
             credentials.username,
@@ -91,8 +91,8 @@
         // thread di controllo per eventuale connection retry
         setInterval(function () {
             if (!connected) {
-                utils.printLog("Connection to the broker not available. Retrying...");
-                utils.printLog(`Initializing StompJs API at ${stompUrl}...`);
+                logs.printLog("Connection to the broker not available. Retrying...");
+                logs.printLog(`Initializing StompJs API at ${stompUrl}...`);
                 client = stomp.overWS(stompUrl);
                 client.connect(
                     credentials.username,
@@ -118,7 +118,7 @@
         }
 
         client.send(endpoints.clientControlTopic + '.' + correlationId, {}, JSON.stringify(message));
-        utils.printLog(`Sent ${message.msgType} in client queue`);
+        logs.printLog(`Sent ${message.msgType} in client queue`);
     };
 
 
@@ -133,7 +133,7 @@
         }
 
         client.send(endpoints.generalTopic, {}, JSON.stringify(message));
-        utils.printLog(`Sent ${message.msgType} in general topic`);
+        logs.printLog(`Sent ${message.msgType} in general topic`);
     };
 
 
@@ -147,7 +147,7 @@
         }
 
         client.send(getGameRoomEndpoint(message.gameType, message.gameRoomId), {}, JSON.stringify(message));
-        utils.printLog(
+        logs.printLog(
             `Sent ${message.msgType} in ${message.gameType} game room ${message.gameRoomId}`);
     };
 
@@ -169,7 +169,7 @@
 
     // a connessione avvenuta, lo script si pone in ascolto di messaggi in arrivo dai client
     let onConnect = function () {
-        utils.printLog('Connection to the broker ready');
+        logs.printLog('Connection to the broker ready');
         connected = true;
 
         client.subscribe(
@@ -193,12 +193,12 @@
             handleIncomingMessages
         );
 
-        utils.printWaiting();
+        logs.printWaiting();
     };
 
 
     let onError = function () {
-        utils.printLog('Error connecting to the broker.');
+        logs.printLog('Error connecting to the broker.');
         connected = false;
     };
 
@@ -215,7 +215,7 @@
             lastMsgId = message.msgId;
 
         } else if (lastMsgId === message.msgId) {
-            utils.printLog("Received duplicate message. Ignored.");
+            logs.printLog("Received duplicate message. Ignored.");
             return;
         }
 
