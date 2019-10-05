@@ -344,8 +344,9 @@
                     gameData: getGameRoomData(message.gameRoomId)
                 });
 
-        } else if (startAnimationCheck(message.gameRoomId)) {
+        } else if (startAnimationCheck(message.gameRoomId) && !gameRooms[message.gameRoomId].gameData.animationStarted) {
             // se un giocatore abbandona durante il match, la sua assenza potrebbe far partire l'animazione
+            gameRooms[message.gameRoomId].gameData.animationStarted = true;
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
@@ -355,6 +356,7 @@
 
         } else if (endMatchCheck(message.gameRoomId)) {
             // se un giocatore abbandona durante l'animazione, la sua assenza potrebbe portare all'aftermatch
+            gameRooms[message.gameRoomId].gameData.animationStarted = true;
             gameRooms[message.gameRoomId].gameData.state = utils.states.aftermatch;
             gameRooms[message.gameRoomId].gameData.matchCount++;
 
@@ -498,6 +500,7 @@
         result.success = startAnimationCheck(message.gameRoomId);
 
         if (result.success) {
+            gameRooms[message.gameRoomId].gameData.animationStarted = true;
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
@@ -542,6 +545,7 @@
         result.success = endMatchCheck(message.gameRoomId);
 
         if (result.success) {
+            gameRooms[message.gameRoomId].gameData.animationInProgress = false;
             gameRooms[message.gameRoomId].gameData.state = utils.states.aftermatch;
             gameRooms[message.gameRoomId].gameData.matchCount++;
 
@@ -843,6 +847,7 @@
             gameName: "RoyaleMatch",
             tiles: undefined,
             timerSetting: 30000,
+            animationStarted: false,
             scheduledStart: false,
             maxPlayersSetting: 20,
             state: (state !== undefined) ? state : utils.states.free,
