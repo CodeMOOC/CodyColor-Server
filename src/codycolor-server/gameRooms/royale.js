@@ -610,7 +610,7 @@
         for (let i = 0; i < gameRooms.length; i++) {
             if (gameRooms[i].gameData.code.toString() === invitationCode.toString()
                 && gameRooms[i].gameData.state === utils.states.mmaking
-                && gameRooms[i].players.length < gameRooms[i].gameData.maxPlayersSetting) {
+                && countOccupiedSlots(i) < gameRooms[i].gameData.maxPlayersSetting) {
 
                 for (let j = 0; j < gameRooms[i].players.length; j++) {
                     // game room trovata: se ci sono slot liberi, occupane uno
@@ -668,6 +668,18 @@
             }
         }
         return playersCount;
+    };
+
+
+    let countOccupiedSlots = function (gameRoomId) {
+        let occupiedSlot = 0;
+        if(gameRoomExists(gameRoomId)) {
+            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+                if (gameRooms[gameRoomId].players[i].occupiedSlot)
+                    occupiedSlot++;
+            }
+        }
+        return occupiedSlot;
     };
 
 
