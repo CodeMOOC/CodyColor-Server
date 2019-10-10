@@ -95,23 +95,21 @@
         // dà la precedenza alle gameRoom con giocatori in attesa di avversari
         for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
             if (gameRooms[gRoomIndex].players[0].occupiedSlot &&
-                !gameRooms[gRoomIndex].players[1].occupiedSlot) {
+                !gameRooms[gRoomIndex].players[1].occupiedSlot && !result.success) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 1;
                 result.success = true;
             }
         }
 
-        if (result.gameRoomId === undefined && result.playerId === undefined) {
-            // cerca il primo slot libero tra le gameRoom
+        // cerca il primo slot organizzatore libero
+        if (!result.success) {
             for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
-                for (let playerIndex = 0; playerIndex < 2; playerIndex++) {
-                    // si è trovato uno slot libero: piazza l'utente lì
-                    if (!gameRooms[gRoomIndex].players[playerIndex].occupiedSlot) {
-                        result.gameRoomId = gRoomIndex;
-                        result.playerId = playerIndex;
-                        result.success = true;
-                    }
+                if (!gameRooms[gRoomIndex].players[0].occupiedSlot && !result.success) {
+                    result.gameRoomId = gRoomIndex;
+                    result.playerId = 0;
+                    result.success = true;
+                    gameRooms[gRoomIndex] = generateGameRoom(result.gameRoomId, utils.states.mmaking);
                 }
             }
         }
