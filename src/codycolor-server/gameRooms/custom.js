@@ -391,15 +391,16 @@
 
         // cerca il primo slot libero tra le gameRoom
         for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
-            if (gameRooms[gRoomIndex].gameData.state === utils.states.free) {
+            if (gameRooms[gRoomIndex].gameData.state === utils.states.free && !result.success) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 0;
                 result.success = true;
+                gameRooms[gRoomIndex] = generateGameRoom(gRoomIndex, utils.states.mmaking);
             }
         }
 
         // non c'è uno slot libero: crea una nuova game room
-        if (result.gameRoomId === undefined && result.playerId === undefined) {
+        if (!result.success) {
             result.gameRoomId = gameRooms.length;
             result.playerId = 0;
             result.success = true;
@@ -424,7 +425,7 @@
         for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
             if (gameRooms[gRoomIndex].gameData.code.toString() === invitationCode.toString()
                 && gameRooms[gRoomIndex].gameData.state === utils.states.mmaking
-                && !gameRooms[gRoomIndex].players[1].occupiedSlot) {
+                && !gameRooms[gRoomIndex].players[1].occupiedSlot && !result.success) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 1;
                 result.success = true;
