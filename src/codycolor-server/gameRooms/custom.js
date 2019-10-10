@@ -391,7 +391,7 @@
 
         // cerca il primo slot libero tra le gameRoom
         for (let gRoomIndex = 0; gRoomIndex < gameRooms.length; gRoomIndex++) {
-            if (gameRooms[gRoomIndex].state === utils.states.free) {
+            if (gameRooms[gRoomIndex].gameData.state === utils.states.free) {
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 0;
                 result.success = true;
@@ -443,7 +443,7 @@
                     clearTimeout(gameRooms[gameRoomId].players[j].heartBeatTimer);
             }
 
-            gameRooms[gameRoomId] = generateGameRoom(gameRoomId, utils.states.free);
+            gameRooms[gameRoomId] = generateGameRoom(gameRoomId);
         }
 
         // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
