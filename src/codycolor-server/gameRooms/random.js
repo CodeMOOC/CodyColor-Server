@@ -416,7 +416,7 @@
                     clearTimeout(gameRooms[gameRoomId].players[j].heartBeatTimer);
             }
 
-            gameRooms[gameRoomId] = generateGameRoom(gameRoomId, utils.states.free);
+            gameRooms[gameRoomId] = generateGameRoom(gameRoomId);
         }
 
         // rimuovi se presenti le gameRoom vuote consecutive in fondo all'array
