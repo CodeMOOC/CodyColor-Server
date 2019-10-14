@@ -36,5 +36,5 @@ services:
     - "traefik.docker.network=web"
     - "traefik.protocol=http"
     - "traefik.port=80"
-    - "traefik.frontend.rule=Host:codycolor.codemooc.net;PathPrefixStrip:/phpmyadmin"
+    - "traefik.frontend.rule=Host:codycolor.codemooc.net;PathPrefixStrip:/phpmyadmin/"
     - "traefik.frontend.entryPoints=https"

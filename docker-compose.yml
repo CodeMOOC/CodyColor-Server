@@ -39,7 +39,7 @@ services:
     env_file: ./config.env
 
   database-manager:
-    image: phpmyadmin/phpmyadmin:latest
+    image: phpmyadmin/phpmyadmin:4.9
     depends_on:
     - database
     networks:
