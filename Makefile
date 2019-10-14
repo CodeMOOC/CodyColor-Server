@@ -54,6 +54,11 @@ dump:
 	${DC_RUN} database-client mysqldump -h database -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} > dump.sql
 	@echo 'Database exported to dump.sql.'
 
+.PHONY: phpmyadmin
+phpmyadmin:
+	@echo 'Running phpMyAdmin, terminate with CTRL+C...'
+	${DC} up database-manager
+
 .PHONY: stop
 stop:
 	${DC} stop
