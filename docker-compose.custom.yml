@@ -10,6 +10,13 @@ volumes:
 services:
   rabbit:
     restart: unless-stopped
+    labels:
+    - "traefik.enable=true"
+    - "traefik.docker.network=web"
+    - "traefik.protocol=http"
+    - "traefik.port=15674"
+    - "traefik.frontend.entryPoints=https"
+    - "traefik.frontend.rule=Host:codycolor.codemooc.net;PathPrefixStrip:/api"
 
   server:
     volumes:
@@ -20,3 +27,14 @@ services:
     volumes:
     - codycolor-database:/var/lib/mysql:rw
     restart: unless-stopped
+
+  database-manager:
+    environment:
+    - "PMA_ABSOLUTE_URI=https://codycolor.codemooc.net/phpmyadmin/"
+    labels:
+    - "traefik.enable=true"
+    - "traefik.docker.network=web"
+    - "traefik.protocol=http"
+    - "traefik.port=80"
+    - "traefik.frontend.rule=Host:codycolor.codemooc.net;PathPrefixStrip:/phpmyadmin/"
+    - "traefik.frontend.entryPoints=https"

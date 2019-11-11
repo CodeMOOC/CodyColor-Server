@@ -706,7 +706,7 @@
         }
         return occupiedSlot;
     };
-    
+
 
     let slotExists = function (gameRoomId, playerId) {
         return gameRooms[gameRoomId] !== undefined

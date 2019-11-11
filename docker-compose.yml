@@ -37,3 +37,18 @@ services:
     networks:
     - backend
     env_file: ./config.env
+
+  database-manager:
+    image: phpmyadmin/phpmyadmin:4.9
+    depends_on:
+    - database
+    networks:
+    - web
+    - backend
+    env_file: ./config.env
+    environment:
+    - "PMA_HOST=database"
+    expose:
+    - "80"
+    stdin_open: true
+    tty: true
