@@ -98,14 +98,14 @@
             // accetta la richiesta solo nel caso in cui il client sia aggiornato
            result.success = false;
 
-        } else if (message.code === '0000') {
+        } else if (message.general.code === '0000') {
             // code 0000 nella richiesta: il client vuole creare una nuova partita
             result = addOrganizerPlayer();
             organizer = true;
 
-        } else if (message.code !== undefined) {
+        } else if (message.general.code !== undefined) {
             // il client è stato invitato: controlla validità codice; nel caso aggiungilo
-            result = addInvitedPlayer(message.code);
+            result = addInvitedPlayer(message.general.code);
         }
 
         // codice non valido: invia response con codice 0000
@@ -122,11 +122,11 @@
         // se si arriva a questo punto, il giocatore ha il permesso di occupare lo slot, e configurare la game room.
         // Aggiungi quindi il giocatore e genera il messaggio di risposta
         gameRooms[result.gameRoomId].players[result.playerId]
-            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId, message.startDate);
+            = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId, message.general.startDate);
 
         // valida giocatore, se nickname già impostato
-        if (message.nickname !== undefined && message.nickname !== "Anonymous") {
-            gameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.nickname;
+        if (message.user.nickname !== undefined && message.user.nickname !== "Anonymous") {
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.user.nickname;
             gameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
         }
 
@@ -136,11 +136,11 @@
 
         if (organizer) {
             gameRooms[result.gameRoomId].players[result.playerId].gameData.organizer = true;
-            gameRooms[result.gameRoomId].gameData.timerSetting = message.timerSetting;
-            gameRooms[result.gameRoomId].gameData.gameName = message.gameName;
-            gameRooms[result.gameRoomId].gameData.maxPlayersSetting = message.maxPlayersSetting;
-            gameRooms[result.gameRoomId].startDate = message.startDate;
-            gameRooms[result.gameRoomId].gameData.scheduledStart = message.startDate !== undefined;
+            gameRooms[result.gameRoomId].gameData.timerSetting = message.general.timerSetting;
+            gameRooms[result.gameRoomId].gameData.gameName = message.general.gameName;
+            gameRooms[result.gameRoomId].gameData.maxPlayersSetting = message.general.maxPlayersSetting;
+            gameRooms[result.gameRoomId].startDate = message.general.startDate;
+            gameRooms[result.gameRoomId].gameData.scheduledStart = message.general.startDate !== undefined;
         }
 
         // nel caso in cui la partita sia ad avvio programmato, calcola i millisecondi mancanti all'avvio
@@ -154,13 +154,15 @@
         // crea i messaggi di risposta
         result.messages.push({
             msgType: broker.messageTypes.s_gameResponse,
-            gameType: utils.gameTypes.royale,
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
-            code: gameRooms[result.gameRoomId].gameData.code,
+            gameType: utils.gameTypes.royale,
             msToStart: msToStart,
             correlationId: message.correlationId,
-            gameData: getGameRoomData(result.gameRoomId)
+            code: gameRooms[result.gameRoomId].gameData.code,
+            general: utils.getGeneralData(gameRooms,result.gameRoomId),
+            user: utils.getPlayerData(gameRooms,result.gameRoomId, result.playerId),
+            aggregated: utils.getAggregatedData(gameRooms,result.gameRoomId),
         });
 
         if (gameRooms[result.gameRoomId].players[result.playerId].gameData.validated && !organizer) {
@@ -169,7 +171,8 @@
                 gameType: utils.gameTypes.royale,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
-                gameData: getGameRoomData(result.gameRoomId)
+                addedPlayer: utils.getPlayerData(gameRooms,result.gameRoomId, result.playerId),
+                aggregated: utils.getAggregatedData(gameRooms,result.gameRoomId),
             });
         }
 
@@ -207,7 +210,8 @@
             gameType: utils.gameTypes.royale,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
-            gameData: getGameRoomData(message.gameRoomId)
+            addedPlayer: utils.getPlayerData(gameRooms,message.gameRoomId, message.playerId),
+            aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId),
         });
 
         return result;
@@ -235,7 +239,7 @@
 
         // invia segnale di startMatch, e configura la struttura, solo nel caso in cui ci
         // siano almeno due giocatori validi
-        if (countValidPlayers(gameRoomId) > 1) {
+        if (utils.countValidPlayers(gameRooms, gameRoomId) > 1) {
             result.success = true;
 
             // configura i giocatori validi, rimuovi quelli non validati
@@ -262,7 +266,7 @@
                 gameRoomId: gameRoomId,
                 gameType: utils.gameTypes.royale,
                 tiles: gameRooms[gameRoomId].gameData.tiles,
-                gameData: getGameRoomData(gameRoomId)
+                aggregated: utils.getAggregatedData(gameRooms,gameRoomId)
             });
 
             if (gameRooms[gameRoomId].gameData.matchCount === 0)
@@ -302,7 +306,7 @@
         // 3. oppure è uscito l'organizzatore di una partita instant durante mmaking
         if ((!gameRoomExists(message.gameRoomId)) ||
             (gameRooms[message.gameRoomId].gameData.state !== utils.states.mmaking
-                && countValidPlayers(message.gameRoomId) <= 1) ||
+                && utils.countValidPlayers(gameRooms, message.gameRoomId) <= 1) ||
             (message.playerId === 0
                 && !gameRooms[message.gameRoomId].gameData.scheduledStart
                 &&  gameRooms[message.gameRoomId].gameData.state === utils.states.mmaking)) {
@@ -324,8 +328,9 @@
             msgType: broker.messageTypes.s_playerRemoved,
             gameRoomId: message.gameRoomId,
             removedPlayerId: message.playerId,
+            removedPlayer: utils.getPlayerData(gameRooms,message.gameRoomId, message.playerId),
             gameType: utils.gameTypes.royale,
-            gameData: getGameRoomData(message.gameRoomId)
+            aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
         });
 
         if (startMatchCheck(message.gameRoomId)) {
@@ -341,17 +346,29 @@
                     gameRoomId: message.gameRoomId,
                     gameType: utils.gameTypes.royale,
                     tiles: gameRooms[message.gameRoomId].gameData.tiles,
-                    gameData: getGameRoomData(message.gameRoomId)
+                    aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
                 });
 
         } else if (startAnimationCheck(message.gameRoomId) && !gameRooms[message.gameRoomId].gameData.animationStarted) {
             // se un giocatore abbandona durante il match, la sua assenza potrebbe far partire l'animazione
             gameRooms[message.gameRoomId].gameData.animationStarted = true;
+            for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
+                gameRooms[message.gameRoomId].players[i].gameData.points
+                    += gameRooms[message.gameRoomId].players[i].gameData.match.points;
+            }
+
+            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
+                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            }
+
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
-                gameData: getGameRoomData(message.gameRoomId)
+                startPositions: utils.getStartPositions(gameRooms, message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
 
         } else if (endMatchCheck(message.gameRoomId)) {
@@ -364,7 +381,8 @@
                 msgType: broker.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
-                gameData: getGameRoomData(message.gameRoomId)
+                winnerId: utils.getWinnerId(gameRooms, message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId),
             });
         }
 
@@ -427,7 +445,7 @@
         // giocatori hanno dato ready
         result.success = startMatchCheck(message.gameRoomId);
 
-        if (result.success && countValidPlayers(message.gameRoomId) > 1) {
+        if (result.success && utils.countValidPlayers(gameRooms, message.gameRoomId) > 1) {
             // vanno quindi rimossi i giocatori che non hanno completato la validazione, configurati quelli validi,
             // quindi avviata la partita
             for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
@@ -453,13 +471,13 @@
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
                 tiles: gameRooms[message.gameRoomId].gameData.tiles,
-                gameData: getGameRoomData(message.gameRoomId)
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
 
             if (gameRooms[message.gameRoomId].gameData.matchCount === 0)
                 callbacks.createDbGameSession(gameRooms[message.gameRoomId]);
 
-        } else if (result.success && countValidPlayers(message.gameRoomId) <= 1) {
+        } else if (result.success && utils.countValidPlayers(gameRooms, message.gameRoomId) <= 1) {
             // non ci sono abbastanza giocatori, ma è ora di iniziare il match: esci
             clearGameRoom(message.gameRoomId);
             result.messages.push({
@@ -497,15 +515,39 @@
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.distance = message.distance;
+
+        let playerResult = utils.calculatePlayerResult(
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition,
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time,
+            gameRooms[message.gameRoomId].gameData.tiles,
+            gameRooms[message.gameRoomId].gameData.timerSetting
+        );
+
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = playerResult.points;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = playerResult.pathLength;
+
         result.success = startAnimationCheck(message.gameRoomId);
 
         if (result.success) {
             gameRooms[message.gameRoomId].gameData.animationStarted = true;
+
+            for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
+                gameRooms[message.gameRoomId].players[i].gameData.points
+                    += gameRooms[message.gameRoomId].players[i].gameData.match.points;
+            }
+
+            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
+                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            }
+
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
-                gameData: getGameRoomData(message.gameRoomId)
+                startPositions: utils.getStartPositions(gameRooms, message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
         }
 
@@ -534,18 +576,9 @@
         }
 
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.points += message.matchPoints;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = message.pathLength;
-
-        if (message.winner) {
-            gameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
-            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
-        }
         result.success = endMatchCheck(message.gameRoomId);
 
         if (result.success) {
-            gameRooms[message.gameRoomId].gameData.animationInProgress = false;
             gameRooms[message.gameRoomId].gameData.state = utils.states.aftermatch;
             gameRooms[message.gameRoomId].gameData.matchCount++;
 
@@ -553,7 +586,10 @@
                 msgType: broker.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
-                gameData: getGameRoomData(message.gameRoomId)
+                matchRanking: utils.getMatchRanking(gameRooms, message.gameRoomId),
+                globalRanking: utils.getGlobalRanking(gameRooms, message.gameRoomId),
+                winnerId: utils.getWinnerId(gameRooms, message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
 
             callbacks.createDbGameMatch(gameRooms[message.gameRoomId]);
@@ -660,22 +696,9 @@
     };
 
 
-    let countValidPlayers = function (gameRoomId) {
-        let playersCount = 0;
-        if(gameRoomExists(gameRoomId)) {
-            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
-                if (gameRooms[gameRoomId].players[i].occupiedSlot
-                    && gameRooms[gameRoomId].players[i].gameData.validated)
-                    playersCount++;
-            }
-        }
-        return playersCount;
-    };
-
-
     let countOccupiedSlots = function (gameRoomId) {
         let occupiedSlot = 0;
-        if(gameRoomExists(gameRoomId)) {
+        if(gameRooms[gameRoomId] !== undefined) {
             for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
                 if (gameRooms[gameRoomId].players[i].occupiedSlot)
                     occupiedSlot++;
@@ -683,7 +706,7 @@
         }
         return occupiedSlot;
     };
-
+    
 
     let slotExists = function (gameRoomId, playerId) {
         return gameRooms[gameRoomId] !== undefined
@@ -694,7 +717,6 @@
     let gameRoomExists = function (gameRoomId) {
         return gameRooms[gameRoomId] !== undefined;
     };
-
 
     let generateGameRoom = function (gameRoomId, state) {
         return {
@@ -730,22 +752,6 @@
         return setTimeout(function () {
             callbacks.onHeartbeatExpired(gameRoomId, playerId, utils.gameTypes.royale)
         }, 15000);
-    };
-
-
-    // ritorna l'oggetto gameData formattato per la sincronizzazione con il client
-    let getGameRoomData = function (gameRoomId) {
-        if (gameRoomExists(gameRoomId)) {
-            let gRoomData = {};
-            gRoomData.general = gameRooms[gameRoomId].gameData;
-            gRoomData.players = [];
-            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
-                if (gameRooms[gameRoomId].players[i].occupiedSlot &&
-                    gameRooms[gameRoomId].players[i].gameData.validated)
-                    gRoomData.players.push(gameRooms[gameRoomId].players[i].gameData)
-            }
-            return gRoomData;
-        }
     };
 
 

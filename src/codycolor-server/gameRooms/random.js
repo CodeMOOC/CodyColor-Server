@@ -130,8 +130,8 @@
             = generateOccupiedSlot(result.gameRoomId, result.playerId, message.userId);
 
         // valida giocatore, se possibile
-        if (message.nickname !== undefined && message.nickname !== "Anonymous") {
-            gameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.nickname;
+        if (message.user.nickname !== undefined && message.user.nickname !== "Anonymous") {
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.nickname = message.user.nickname;
             gameRooms[result.gameRoomId].players[result.playerId].gameData.validated = true;
         }
 
@@ -156,7 +156,9 @@
             gameRoomId: result.gameRoomId,
             playerId: result.playerId,
             correlationId: message.correlationId,
-            gameData: getGameRoomData(result.gameRoomId)
+            general: utils.getGeneralData(gameRooms, result.gameRoomId),
+            user: utils.getPlayerData(gameRooms, result.gameRoomId, result.playerId),
+            enemy: utils.getPlayerData(gameRooms, result.gameRoomId, result.playerId === 0 ? 1 : 0)
         });
 
         if (gameRooms[result.gameRoomId].players[result.playerId].gameData.validated) {
@@ -165,7 +167,7 @@
                 gameType: utils.gameTypes.random,
                 gameRoomId: result.gameRoomId,
                 addedPlayerId: result.playerId,
-                gameData: getGameRoomData(result.gameRoomId)
+                addedPlayer: utils.getPlayerData(gameRooms, result.gameRoomId, result.playerId)
             });
         }
 
@@ -204,7 +206,7 @@
             gameType: utils.gameTypes.random,
             gameRoomId: message.gameRoomId,
             addedPlayerId: message.playerId,
-            gameData: getGameRoomData(message.gameRoomId)
+            addedPlayer: utils.getPlayerData(gameRooms, message.gameRoomId, message.playerId)
         });
 
         return result;
@@ -298,8 +300,7 @@
                 msgType: broker.messageTypes.s_startMatch,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.random,
-                tiles: gameRooms[message.gameRoomId].gameData.tiles,
-                gameData: getGameRoomData(message.gameRoomId)
+                tiles: gameRooms[message.gameRoomId].gameData.tiles
             });
 
             if (gameRooms[message.gameRoomId].gameData.matchCount === 0) {
@@ -333,18 +334,45 @@
             return result;
         }
 
+        // setta dati partita dell'utente e calcola i risultati del suo match
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.positioned = true;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time = message.matchTime;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.side = message.side;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition.distance = message.distance;
+
+        let playerResult = utils.calculatePlayerResult(
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition,
+            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time,
+            gameRooms[message.gameRoomId].gameData.tiles,
+            gameRooms[message.gameRoomId].gameData.timerSetting
+        );
+
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = playerResult.points;
+        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = playerResult.pathLength;
+
         result.success = startAnimationCheck(message.gameRoomId);
 
         if (result.success) {
+            gameRooms[message.gameRoomId].gameData.animationStarted = true;
+
+            // aggiusta i punteggi: il giocatore che ha perso non riceve nessun punto
+            let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
+            let loserId = winnerId === 0 ? 1 : 0;
+
+            gameRooms[message.gameRoomId].players[loserId].gameData.match.points = 0;
+            gameRooms[message.gameRoomId].players[winnerId].gameData.points
+                += gameRooms[message.gameRoomId].players[winnerId].gameData.match.points;
+
+            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            }
+
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
-                gameType: utils.gameTypes.random,
-                gameData: getGameRoomData(message.gameRoomId)
+                startPositions: utils.getStartPositions(gameRooms, message.gameRoomId),
+                gameType: utils.gameTypes.random
             });
         }
 
@@ -373,15 +401,6 @@
         }
 
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.animationEnded = true;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = message.matchPoints;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.points
-            += gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points;
-        gameRooms[message.gameRoomId].players[message.playerId].gameData.match.pathLength = message.pathLength;
-
-        if (message.winner) {
-            gameRooms[message.gameRoomId].players[message.playerId].gameData.wonMatches++;
-            gameRooms[message.gameRoomId].players[message.playerId].gameData.match.winner = true;
-        }
         result.success = endMatchCheck(message.gameRoomId);
 
         if (result.success) {
@@ -392,7 +411,10 @@
                 msgType: broker.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.random,
-                gameData: getGameRoomData(message.gameRoomId)
+                matchRanking: utils.getMatchRanking(gameRooms, message.gameRoomId),
+                globalRanking: utils.getGlobalRanking(gameRooms, message.gameRoomId),
+                winnerId: utils.getWinnerId(gameRooms, message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms, message.gameRoomId)
             });
 
             callbacks.createDbGameMatch(gameRooms[message.gameRoomId]);
@@ -470,21 +492,6 @@
         return setTimeout(function () {
             callbacks.onHeartbeatExpired(gameRoomId, playerId, utils.gameTypes.random)
         }, 15000);
-    };
-
-
-    let getGameRoomData = function (gameRoomId) {
-        if (gameRooms[gameRoomId] !== undefined) {
-            let gRoomData = {};
-            gRoomData.general = gameRooms[gameRoomId].gameData;
-            gRoomData.players = [];
-            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
-                if (gameRooms[gameRoomId].players[i].occupiedSlot &&
-                    gameRooms[gameRoomId].players[i].gameData.validated)
-                    gRoomData.players.push(gameRooms[gameRoomId].players[i].gameData)
-            }
-            return gRoomData;
-        }
     };
 
 
