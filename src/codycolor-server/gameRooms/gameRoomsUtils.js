@@ -61,7 +61,7 @@
 
 
     // calcola il risultato totalizzato dal giocatore (punti e lunghezza percorso), in base alla posizione iniziale
-    module.exports.calculatePlayerResult = function (startPosition, time, tilesString, timerSetting) {
+    module.exports.calculatePlayerResult = function (startPosition, time, tilesString) {
         let pathInfo = {
             startPosition: startPosition,
             endPosition: { side: -1, distance: -1 },
@@ -195,13 +195,13 @@
         // ogni passo vale 2 punti
         result.points += result.pathLength * 2;
 
-        // DISATTIVATO PER MAGGIORE COERENZA NEI PUNTEGGI
-        // il tempo viene scalato su un massimo di 15 punti
-        // result.points += Math.floor(15 * time / timerSetting);
-        
         return result;
     };
 
+    module.exports.calculateWinnerBonusPoints = function(time, timerSetting) {
+        // il tempo viene scalato su un massimo di 15 punti
+        return Math.floor(15 * time / timerSetting);
+    };
 
     // restituisce per una data game room il numero di giocatori validati
     module.exports.countValidPlayers = function (gameRooms, gameRoomId) {

@@ -334,14 +334,22 @@
             let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
             let loserId = winnerId === 0 ? 1 : 0;
 
-            gameRooms[message.gameRoomId].players[loserId].gameData.match.points = 0;
-            gameRooms[message.gameRoomId].players[winnerId].gameData.points
-                += gameRooms[message.gameRoomId].players[winnerId].gameData.match.points;
+            // il vincitore riceve dei punti bonus calcolati sul tempo di esecuzione
+            gameRooms[message.gameRoomId].players[winnerId].gameData.match.points
+                += utils.calculateWinnerBonusPoints(
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.time,
+                gameRooms[message.gameRoomId].gameData.timerSetting
+            );
 
             if (!utils.isDraw(gameRooms, message.gameRoomId)) {
                 gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
                 gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
             }
+
+            gameRooms[message.gameRoomId].players[loserId].gameData.match.points = 0;
+            gameRooms[message.gameRoomId].players[winnerId].gameData.points
+                += gameRooms[message.gameRoomId].players[winnerId].gameData.match.points;
+
 
             result.messages.push({
                 msgType: broker.messageTypes.s_startAnimation,

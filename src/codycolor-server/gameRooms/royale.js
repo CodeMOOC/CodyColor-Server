@@ -352,15 +352,28 @@
         } else if (startAnimationCheck(message.gameRoomId) && !gameRooms[message.gameRoomId].gameData.animationStarted) {
             // se un giocatore abbandona durante il match, la sua assenza potrebbe far partire l'animazione
             gameRooms[message.gameRoomId].gameData.animationStarted = true;
+
+            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
+                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
+
+                // il vincitore riceve dei punti bonus calcolati sul tempo di esecuzione
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.points
+                    += utils.calculateWinnerBonusPoints(
+                    gameRooms[message.gameRoomId].players[winnerId].gameData.match.time,
+                    gameRooms[message.gameRoomId].gameData.timerSetting
+                );
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            }
+
             for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
                 gameRooms[message.gameRoomId].players[i].gameData.points
                     += gameRooms[message.gameRoomId].players[i].gameData.match.points;
             }
 
-            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
-                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
-                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
-                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
+                gameRooms[message.gameRoomId].players[i].gameData.points
+                    += gameRooms[message.gameRoomId].players[i].gameData.match.points;
             }
 
             result.messages.push({
@@ -519,8 +532,7 @@
         let playerResult = utils.calculatePlayerResult(
             gameRooms[message.gameRoomId].players[message.playerId].gameData.match.startPosition,
             gameRooms[message.gameRoomId].players[message.playerId].gameData.match.time,
-            gameRooms[message.gameRoomId].gameData.tiles,
-            gameRooms[message.gameRoomId].gameData.timerSetting
+            gameRooms[message.gameRoomId].gameData.tiles
         );
 
         gameRooms[message.gameRoomId].players[message.playerId].gameData.match.points = playerResult.points;
@@ -531,15 +543,22 @@
         if (result.success) {
             gameRooms[message.gameRoomId].gameData.animationStarted = true;
 
+            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
+                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
+
+                // il vincitore riceve dei punti bonus calcolati sul tempo di esecuzione
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.points
+                    += utils.calculateWinnerBonusPoints(
+                        gameRooms[message.gameRoomId].players[winnerId].gameData.match.time,
+                        gameRooms[message.gameRoomId].gameData.timerSetting
+                );
+                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
+                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
+            }
+
             for (let i = 0; i < gameRooms[message.gameRoomId].players.length; i++) {
                 gameRooms[message.gameRoomId].players[i].gameData.points
                     += gameRooms[message.gameRoomId].players[i].gameData.match.points;
-            }
-
-            if (!utils.isDraw(gameRooms, message.gameRoomId)) {
-                let winnerId = utils.getMatchRanking(gameRooms, message.gameRoomId)[0].playerId;
-                gameRooms[message.gameRoomId].players[winnerId].gameData.match.winner = true;
-                gameRooms[message.gameRoomId].players[winnerId].gameData.wonMatches++;
             }
 
             result.messages.push({
