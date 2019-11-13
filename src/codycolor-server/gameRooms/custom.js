@@ -5,9 +5,8 @@
     let broker = require("../communication/broker");
     let logs = require("../communication/logs");
     let utils = require("./gameRoomsUtils");
-    let pjson = require('../package.json');
+    let versions = require('../versions');
 
-    let requiredClientVersion  = pjson.version.toString();
     let gameRooms = [];
     let callbacks = {};
 
@@ -84,7 +83,7 @@
 
         let organizer = false;
 
-        if (message.clientVersion !== requiredClientVersion) {
+        if (message.clientVersion !== versions.requiredClient && message.wallVersion !== versions.requiredWall) {
             // accetta la richiesta solo nel caso in cui il client sia aggiornato
             result.success = false;
 

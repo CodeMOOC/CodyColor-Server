@@ -12,8 +12,7 @@ let gameRoomsUtils = require('./gameRooms/gameRoomsUtils');
 let randomGameRooms = require('./gameRooms/random');
 let customGameRooms = require('./gameRooms/custom');
 let royaleGameRooms = require('./gameRooms/royale');
-let pjson = require('./package.json');
-const requiredClientVersion  = pjson.version.toString();
+let versions = require('./versions');
 
 logs.printProgramHeader();
 
@@ -532,7 +531,8 @@ let sendGeneralInfoMessage = function (correlationId) {
                 connectedPlayers: connectedPlayers,
                 correlationId: correlationId,
                 randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
-                requiredClientVersion: requiredClientVersion
+                requiredClientVersion: versions.requiredClient,
+                requiredWallVersion: versions.requiredWall
             };
         } else {
             message = {
@@ -541,7 +541,8 @@ let sendGeneralInfoMessage = function (correlationId) {
                 connectedPlayers: connectedPlayers,
                 correlationId: correlationId,
                 randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
-                requiredClientVersion: requiredClientVersion
+                requiredClientVersion: versions.requiredClient,
+                requiredWallVersion: versions.requiredWall
             };
         }
 

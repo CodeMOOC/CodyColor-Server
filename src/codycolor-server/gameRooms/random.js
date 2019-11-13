@@ -5,9 +5,7 @@
     let broker = require("../communication/broker");
     let logs = require("../communication/logs");
     let utils = require("./gameRoomsUtils");
-    let pjson = require('../package.json');
 
-    let requiredClientVersion  = pjson.version.toString();
     let gameRooms = [];
     let callbacks = {};
 
