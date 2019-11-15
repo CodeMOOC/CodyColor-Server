@@ -12,8 +12,7 @@ let gameRoomsUtils = require('./gameRooms/gameRoomsUtils');
 let randomGameRooms = require('./gameRooms/random');
 let customGameRooms = require('./gameRooms/custom');
 let royaleGameRooms = require('./gameRooms/royale');
-let pjson = require('./package.json');
-const requiredClientVersion  = pjson.version.toString();
+let versions = require('./versions');
 
 logs.printProgramHeader();
 
@@ -266,14 +265,14 @@ broker.connect({
         // richiesta di nuova partita. Aggiunge un nuovo player nell'array gameRooms;
         // comunica al client playerId e gameRoom assegnatigli; riferisce agli altri client
         // dell'arrivo del nuovo giocatore, se il messaggio comprende opzioni di validazione
-        logs.printLog('Received ' + message.gameType + ' gameRequest from client');
+        logs.printLog('Received ' + message.general.gameType + ' gameRequest from client');
 
-        let gameRoomHandler = getGameRoomHandler(message.gameType);
+        let gameRoomHandler = getGameRoomHandler(message.general.gameType);
         let result = gameRoomHandler.handleGameRequest(message);
         sendMessages(result.messages);
 
         if (result.success) {
-            logs.printLog('Client successfully added to ' + message.gameType + ' gameRooms ' +
+            logs.printLog('Client successfully added to ' + message.general.gameType + ' gameRooms ' +
                 'array. User params: ' + result.gameRoomId + '[' + result.playerId + ']');
             gameRoomHandler.printGameRooms();
         } else {
@@ -532,7 +531,8 @@ let sendGeneralInfoMessage = function (correlationId) {
                 connectedPlayers: connectedPlayers,
                 correlationId: correlationId,
                 randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
-                requiredClientVersion: requiredClientVersion
+                requiredClientVersion: versions.requiredClient,
+                requiredWallVersion: versions.requiredWall
             };
         } else {
             message = {
@@ -541,7 +541,8 @@ let sendGeneralInfoMessage = function (correlationId) {
                 connectedPlayers: connectedPlayers,
                 correlationId: correlationId,
                 randomWaitingPlayers: randomGameRooms.getWaitingPlayers(),
-                requiredClientVersion: requiredClientVersion
+                requiredClientVersion: versions.requiredClient,
+                requiredWallVersion: versions.requiredWall
             };
         }
 
