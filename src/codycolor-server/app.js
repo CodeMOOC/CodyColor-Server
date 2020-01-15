@@ -89,20 +89,28 @@ broker.connect({
 
             let userTotalMatches =
                 "SELECT COUNT(*) as playerMatches " +
-                "FROM WallMatchParticipants " +
-                "WHERE WallUserId = " + database.escape(message.userId) + " " +
-                "GROUP BY WallUserId; ";
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1 " +
+                "GROUP BY UserId; ";
 
             let bestMatchBot =
                 "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
-                "FROM WallMatchParticipants " +
-                "WHERE WallUserId = " + database.escape(message.userId) + " " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1 " +
                 "ORDER BY points DESC, pathLength DESC, time DESC " +
                 "LIMIT 1; ";
 
-            // todo bestMatchHuman
+            let bestMatchHuman =
+                "SELECT MP1.Score AS points, MP1.PathLength AS pathLength, MP1.TimeMs as time " +
+                "FROM MatchParticipants MP1 " +
+                "WHERE MP1.MatchId IN (SELECT MatchId " +
+                "                  FROM MatchParticipants MP2 " +
+                "                  WHERE MP2.UserId = " + database.escape(message.userId) + " AND MP2.IsWallUser = 1) " +
+                "AND MP1.IsWallUser = 0 " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
 
-            let queries = searchUser + userTotalMatches + bestMatchBot;
+            let queries = searchUser + userTotalMatches + bestMatchBot + bestMatchHuman;
 
             database.query(queries, function (results, error) {
                 let response;
@@ -141,6 +149,12 @@ broker.connect({
                         bestMatchBotValue = results[2][0];
                     }
 
+                    let bestMatchHumanValue = undefined;
+                    if (results[3] !== undefined
+                        && results[3][0] !== undefined) {
+                        bestMatchHumanValue = results[3][0];
+                    }
+
                     response = {
                         msgType: broker.messageTypes.s_authResponse,
                         success: nameValue !== undefined,
@@ -148,6 +162,7 @@ broker.connect({
                         surname: surnameValue,
                         playerMatches: playerMatchesValue,
                         bestMatchBot: bestMatchBotValue,
+                        bestMatchHuman: bestMatchHumanValue,
                         correlationId: message.correlationId
                     };
                 }
@@ -527,25 +542,14 @@ gameRoomCallbacks = {
                 '[' + gameType + ']');
         }
         logs.printWaiting();
-        
+
     }, createDbGameSession: function (gameRoomData) {
         // crea una gameSession nel db. Invocato nel momento in cui viene concluso il matchmaking di una gameRoom
-        let insertSession = undefined;
-        if(gameRoomData.isWall) {
-            insertSession = "INSERT INTO WallGameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
-                + "VALUES (0, "
-                + database.escape(gameRoomData.gameData.gameType) + ", "
-                + gameRoomData.gameData.timerSetting + ", "
-                + database.escape(new Date()) + ")";
-
-        } else {
-            insertSession = "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
-                + "VALUES (0, "
-                + database.escape(gameRoomData.gameData.gameType) + ", "
-                + gameRoomData.gameData.timerSetting + ", "
-                + database.escape(new Date()) + ")";
-        }
-
+        let insertSession =  "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
+            + "VALUES (0, "
+            + database.escape(gameRoomData.gameData.gameType) + ", "
+            + gameRoomData.gameData.timerSetting + ", "
+            + database.escape(new Date()) + ")";
 
         database.query(insertSession, function (results, error) {
             if (!error) {
@@ -553,15 +557,14 @@ gameRoomCallbacks = {
             }
             logs.printWaiting();
         });
-        
+
     }, createDbGameMatch: function (gameRoomData) {
         // crea un match nel db. Invocato nel momento in cui viene avviato un match
         let dateTimeNow = new Date();
         let numPlayers = 0;
         let anonUsers = 0;
-        let wallString = gameRoomData.isWall ? 'Wall' : '';
 
-        let updateSession = "UPDATE GameSessions SET " + wallString + "NumMatches = " + gameRoomData.gameData.matchCount + " "
+        let updateSession = "UPDATE GameSessions SET NumMatches = " + gameRoomData.gameData.matchCount + " "
             + "WHERE Id = " + gameRoomData.sessionId;
         database.query(updateSession);
 
@@ -571,7 +574,7 @@ gameRoomCallbacks = {
             }
         }
 
-        let insertMatch = "INSERT INTO " + wallString + "GameMatches (SessionId, BeginTimestamp, NumUsers) "
+        let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers) "
             + "VALUES ("
             + gameRoomData.sessionId + ", "
             + database.escape(dateTimeNow) + ", "
@@ -586,49 +589,20 @@ gameRoomCallbacks = {
                         let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : ++anonUsers;
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
-                        let isWallUser = gameRoomData.players[i].gameData.organizer === true;
+                        let isWallUser = (gameRoomData.players[i].gameData.organizer && gameRoomData.isWall) ? 1 : 0;
 
-                        if (gameRoomData.isWall) {
-                            if (isWallUser) {
-                                insertAllParticipants += "INSERT INTO WallMatchParticipants (SessionId, MatchId, " +
-                                    "WallUserId, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                                    + gameRoomData.sessionId + ", "
-                                    + results.insertId + ", "
-                                    + database.escape(userId) + ", "
-                                    + "1, "
-                                    + database.escape(dateTimeNow) + ", "
-                                    + gameRoomData.players[i].gameData.match.points + ", "
-                                    + gameRoomData.players[i].gameData.match.pathLength + ", "
-                                    + gameRoomData.players[i].gameData.match.time + ", "
-                                    + winner + "); ";
-                            } else {
-                                insertAllParticipants += "INSERT INTO WallMatchParticipants (SessionId, MatchId, " +
-                                    "UserId, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                                    + gameRoomData.sessionId + ", "
-                                    + results.insertId + ", "
-                                    + database.escape(userId) + ", "
-                                    + registered + ", "
-                                    + "0, "
-                                    + database.escape(dateTimeNow) + ", "
-                                    + gameRoomData.players[i].gameData.match.points + ", "
-                                    + gameRoomData.players[i].gameData.match.pathLength + ", "
-                                    + gameRoomData.players[i].gameData.match.time + ", "
-                                    + winner + "); ";
-                            }
-
-                        } else {
-                            insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, UserId, Registered, " +
-                                "BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                                + gameRoomData.sessionId + ", "
-                                + results.insertId + ", "
-                                + database.escape(userId) + ", "
-                                + registered + ", "
-                                + database.escape(dateTimeNow) + ", "
-                                + gameRoomData.players[i].gameData.match.points + ", "
-                                + gameRoomData.players[i].gameData.match.pathLength + ", "
-                                + gameRoomData.players[i].gameData.match.time + ", "
-                                + winner + "); ";
-                        }
+                        insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, " +
+                            "UserId, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
+                            + gameRoomData.sessionId + ", "
+                            + results.insertId + ", "
+                            + database.escape(userId) + ", "
+                            + registered + ", "
+                            + isWallUser + ", "
+                            + database.escape(dateTimeNow) + ", "
+                            + gameRoomData.players[i].gameData.match.points + ", "
+                            + gameRoomData.players[i].gameData.match.pathLength + ", "
+                            + gameRoomData.players[i].gameData.match.time + ", "
+                            + winner + "); ";
                     }
                 }
                 if (insertAllParticipants !== '') {

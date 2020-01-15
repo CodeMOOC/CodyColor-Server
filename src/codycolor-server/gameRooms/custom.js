@@ -89,7 +89,7 @@
 
         } else if (message.general.code === '0000') {
             // code 0000 nella richiesta: il client vuole creare una nuova partita
-            result = addOrganizerPlayer(message.isWall);
+            result = addOrganizerPlayer(message.wallUser);
             organizer = true;
 
         } else if (message.general.code !== undefined) {
@@ -597,7 +597,7 @@
             time: -1,
             points: 0,
             pathLength: 0,
-            winner: true,
+            winner: false,
             animationEnded: false,
             positioned: false,
             startPosition: {
