@@ -27,142 +27,260 @@ broker.connect({
         // un client, dopo aver ottenuto l'uid da FirebaseAuth e aver scelto un nickname, vuole registrarsi a
         // CodyColor. Crea un record utente nel db e restituisci alcune statistiche utente.
         logs.printLog('A new user is trying to sign in');
-        let insertUser =
-            "INSERT INTO Users (Id, Email, Nickname, Deleted) " +
-            "VALUES (" + database.escape(message.userId)   + ", "
-                       + database.escape(message.email)    + ", "
-                       + database.escape(message.nickname) + ", "
-                       + "0)";
 
-        database.query(insertUser, function (results, error) {
-            let response = {
-                msgType: broker.messageTypes.s_authResponse,
-                success: !error,
-                nickname: message.nickname,
-                totalPoints: 0,
-                wonMatches: 0,
-                avgPoints: 0,
-                bestMatch: undefined,
-                correlationId: message.correlationId
-            };
+        if(message.wallUser) {
+            let insertUser = "INSERT INTO WallUsers (Id, Name, Surname, Deleted) " +
+            "VALUES (" + database.escape(message.userId) + ", "
+            + database.escape(message.name) + ", "
+            + database.escape(message.surname) + ", "
+            + "0)";
 
-            broker.sendInClientControlQueue(message.correlationId, response);
-            logs.printWaiting();
-        });
+            database.query(insertUser, function (results, error) {
+                let response = {
+                    msgType: broker.messageTypes.s_authResponse,
+                    success: !error,
+                    name: message.name,
+                    surname: message.surname,
+                    playerMatches: 0,
+                    bestMatchBot: undefined,
+                    bestMatchHuman: undefined,
+                    correlationId: message.correlationId
+                };
+
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+
+        } else {
+            let insertUser = "INSERT INTO Users (Id, Email, Nickname, Deleted) " +
+                "VALUES (" + database.escape(message.userId) + ", "
+                + database.escape(message.email) + ", "
+                + database.escape(message.nickname) + ", "
+                + "0)";
+
+            database.query(insertUser, function (results, error) {
+                let response = {
+                    msgType: broker.messageTypes.s_authResponse,
+                    success: !error,
+                    nickname: message.nickname,
+                    totalPoints: 0,
+                    wonMatches: 0,
+                    avgPoints: 0,
+                    bestMatch: undefined,
+                    correlationId: message.correlationId
+                };
+
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+        }
+
+
 
     }, onLogInRequest: function(message) {
         // un client vuole ottenere le informazioni del proprio account memorizzate nel db. Restituiscile
         // in caso l'userId corrisponda
         logs.printLog('A user is trying to log in');
-        let searchUser =
-            "SELECT Nickname as nickname FROM Users " +
-            "WHERE Id = " + database.escape(message.userId) + "; ";
 
-        let userTotalPoints =
-            "SELECT SUM(Score) as totalPoints " +
-            "FROM MatchParticipants " +
-            "WHERE UserId = " + database.escape(message.userId) + " " +
-            "GROUP BY UserId; ";
+        if (message.wallUser) {
+            let searchUser =
+                "SELECT Name as name, Surname as surname FROM WallUsers " +
+                "WHERE Id = " + database.escape(message.userId) + "; ";
 
-        let userWins =
-            "SELECT SUM(Winner) as wonMatches " +
-            "FROM MatchParticipants " +
-            "WHERE UserId = " + database.escape(message.userId) + " " +
-            "GROUP BY UserId; ";
+            let userTotalMatches =
+                "SELECT COUNT(*) as playerMatches " +
+                "FROM WallMatchParticipants " +
+                "WHERE WallUserId = " + database.escape(message.userId) + " " +
+                "GROUP BY WallUserId; ";
 
-        let userAvgPoints =
-            "SELECT AVG(Score) as avgPoints " +
-            "FROM MatchParticipants " +
-            "WHERE UserId = " + database.escape(message.userId) + " " +
-            "GROUP BY UserId; ";
+            let bestMatchBot =
+                "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
+                "FROM WallMatchParticipants " +
+                "WHERE WallUserId = " + database.escape(message.userId) + " " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
+
+            // todo bestMatchHuman
+
+            let queries = searchUser + userTotalMatches + bestMatchBot;
+
+            database.query(queries, function (results, error) {
+                let response;
+                if (error) {
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: false,
+                        correlationId: message.correlationId
+                    };
+                } else {
+                    let nameValue = undefined;
+                    if (results[0] !== undefined
+                        && results[0][0] !== undefined
+                        && results[0][0].name !== undefined) {
+                        nameValue = results[0][0].name;
+                    }
+
+                    let surnameValue = undefined;
+                    if (results[0] !== undefined
+                        && results[0][0] !== undefined
+                        && results[0][0].name !== undefined) {
+                        surnameValue = results[0][0].surname;
+                    }
+
+                    let playerMatchesValue = 0;
+                    if (results[1] !== undefined
+                        && results[1][0] !== undefined
+                        && results[1][0].playerMatches !== undefined) {
+                        playerMatchesValue = results[1][0].playerMatches;
+                    }
 
 
-        let bestMatch =
-            "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
-            "FROM MatchParticipants " +
-            "WHERE UserId = " + database.escape(message.userId) + " " +
-            "ORDER BY points DESC, pathLength DESC, time DESC " +
-            "LIMIT 1; ";
+                    let bestMatchBotValue = undefined;
+                    if (results[2] !== undefined
+                        && results[2][0] !== undefined) {
+                        bestMatchBotValue = results[2][0];
+                    }
 
-        let queries = searchUser + userTotalPoints + userWins + userAvgPoints + bestMatch;
-
-        database.query(queries, function (results, error) {
-            let response;
-            if (error) {
-                response = {
-                    msgType: broker.messageTypes.s_authResponse,
-                    success: false,
-                    correlationId: message.correlationId
-                };
-            } else {
-                let nicknameValue = undefined;
-                if (results[0] !== undefined
-                    && results[0][0] !== undefined
-                    && results[0][0].nickname !== undefined) {
-                    nicknameValue = results[0][0].nickname;
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: nameValue !== undefined,
+                        name: nameValue,
+                        surname: surnameValue,
+                        playerMatches: playerMatchesValue,
+                        bestMatchBot: bestMatchBotValue,
+                        correlationId: message.correlationId
+                    };
                 }
 
-                let totalPointsValue = 0;
-                if (results[1] !== undefined
-                    && results[1][0] !== undefined
-                    && results[1][0].totalPoints !== undefined) {
-                    totalPointsValue = results[1][0].totalPoints;
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+        } else {
+            let searchUser =
+                "SELECT Nickname as nickname FROM Users " +
+                "WHERE Id = " + database.escape(message.userId) + "; ";
+
+            let userTotalPoints =
+                "SELECT SUM(Score) as totalPoints " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " " +
+                "GROUP BY UserId; ";
+
+            let userWins =
+                "SELECT SUM(Winner) as wonMatches " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " " +
+                "GROUP BY UserId; ";
+
+            let userAvgPoints =
+                "SELECT AVG(Score) as avgPoints " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " " +
+                "GROUP BY UserId; ";
+
+
+            let bestMatch =
+                "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
+
+            let queries = searchUser + userTotalPoints + userWins + userAvgPoints + bestMatch;
+
+            database.query(queries, function (results, error) {
+                let response;
+                if (error) {
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: false,
+                        correlationId: message.correlationId
+                    };
+                } else {
+                    let nicknameValue = undefined;
+                    if (results[0] !== undefined
+                        && results[0][0] !== undefined
+                        && results[0][0].nickname !== undefined) {
+                        nicknameValue = results[0][0].nickname;
+                    }
+
+                    let totalPointsValue = 0;
+                    if (results[1] !== undefined
+                        && results[1][0] !== undefined
+                        && results[1][0].totalPoints !== undefined) {
+                        totalPointsValue = results[1][0].totalPoints;
+                    }
+
+                    let wonMatchesValue = 0;
+                    if (results[2] !== undefined
+                        && results[2][0] !== undefined
+                        && results[2][0].wonMatches !== undefined) {
+                        wonMatchesValue = results[2][0].wonMatches;
+                    }
+
+                    let avgPointsValue = 0;
+                    if (results[3] !== undefined
+                        && results[3][0] !== undefined
+                        && results[3][0].avgPoints !== undefined) {
+                        avgPointsValue = results[3][0].avgPoints;
+                    }
+
+                    let bestMatchValue = undefined;
+                    if (results[4] !== undefined
+                        && results[4][0] !== undefined) {
+                        bestMatchValue = results[4][0];
+                    }
+
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: nicknameValue !== undefined,
+                        nickname: nicknameValue,
+                        totalPoints: totalPointsValue,
+                        wonMatches: wonMatchesValue,
+                        avgPoints: avgPointsValue,
+                        bestMatch: bestMatchValue,
+                        correlationId: message.correlationId
+                    };
                 }
 
-                let wonMatchesValue = 0;
-                if (results[2] !== undefined
-                    && results[2][0] !== undefined
-                    && results[2][0].wonMatches !== undefined) {
-                    wonMatchesValue = results[2][0].wonMatches;
-                }
-
-                let avgPointsValue = 0;
-                if (results[3] !== undefined
-                    && results[3][0] !== undefined
-                    && results[3][0].avgPoints !== undefined) {
-                    avgPointsValue = results[3][0].avgPoints;
-                }
-
-                let bestMatchValue = undefined;
-                if (results[4] !== undefined
-                    && results[4][0] !== undefined) {
-                    bestMatchValue = results[4][0];
-                }
-
-                response = {
-                    msgType: broker.messageTypes.s_authResponse,
-                    success: nicknameValue !== undefined,
-                    nickname: nicknameValue,
-                    totalPoints: totalPointsValue,
-                    wonMatches: wonMatchesValue,
-                    avgPoints: avgPointsValue,
-                    bestMatch: bestMatchValue,
-                    correlationId: message.correlationId
-                };
-            }
-
-            broker.sendInClientControlQueue(message.correlationId, response);
-            logs.printWaiting();
-    });
-
-
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+        }
 
     }, onUserDeleteRequest: function(message) {
         // un utente vuole rimuovere il proprio account. Elimina l'email collegata l'account e imposta
         // l'utente come eliminato
         logs.printLog('A user is trying to delete his account');
-        let deleteUser = "UPDATE Users SET Email = '', Deleted = 1 "
-                       + "WHERE Id = " + database.escape(message.userId);
 
-        database.query(deleteUser, function (results, error) {
-            let response = {
-                msgType: broker.messageTypes.s_userDeleteResponse,
-                success: error !== undefined,
-                correlationId: message.correlationId,
-            };
-            broker.sendInClientControlQueue(message.correlationId, response);
-            logs.printWaiting();
-        });
+        if (message.wallUser) {
+            let deleteUser = "UPDATE WallUsers SET Name = '', Surname = '', Deleted = 1 "
+                + "WHERE Id = " + database.escape(message.userId);
+
+            database.query(deleteUser, function (results, error) {
+                let response = {
+                    msgType: broker.messageTypes.s_userDeleteResponse,
+                    success: error !== undefined,
+                    correlationId: message.correlationId,
+                };
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+
+        } else {
+            let deleteUser = "UPDATE Users SET Email = '', Deleted = 1 "
+                + "WHERE Id = " + database.escape(message.userId);
+
+            database.query(deleteUser, function (results, error) {
+                let response = {
+                    msgType: broker.messageTypes.s_userDeleteResponse,
+                    success: error !== undefined,
+                    correlationId: message.correlationId,
+                };
+                broker.sendInClientControlQueue(message.correlationId, response);
+                logs.printWaiting();
+            });
+        }
 
     }, onRankingRequest: function(message) {
         // un client ha richiesto dati relativi alle classifiche. Restituiscili.
@@ -412,11 +530,22 @@ gameRoomCallbacks = {
         
     }, createDbGameSession: function (gameRoomData) {
         // crea una gameSession nel db. Invocato nel momento in cui viene concluso il matchmaking di una gameRoom
-        let insertSession = "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
-            + "VALUES (0, "
-            + database.escape(gameRoomData.gameData.gameType) + ", "
-            + gameRoomData.gameData.timerSetting + ", "
-            + database.escape(new Date()) + ")";
+        let insertSession = undefined;
+        if(gameRoomData.isWall) {
+            insertSession = "INSERT INTO WallGameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
+                + "VALUES (0, "
+                + database.escape(gameRoomData.gameData.gameType) + ", "
+                + gameRoomData.gameData.timerSetting + ", "
+                + database.escape(new Date()) + ")";
+
+        } else {
+            insertSession = "INSERT INTO GameSessions (NumMatches, Type, MatchDurationMs, BeginTimestamp) "
+                + "VALUES (0, "
+                + database.escape(gameRoomData.gameData.gameType) + ", "
+                + gameRoomData.gameData.timerSetting + ", "
+                + database.escape(new Date()) + ")";
+        }
+
 
         database.query(insertSession, function (results, error) {
             if (!error) {
@@ -430,8 +559,9 @@ gameRoomCallbacks = {
         let dateTimeNow = new Date();
         let numPlayers = 0;
         let anonUsers = 0;
+        let wallString = gameRoomData.isWall ? 'Wall' : '';
 
-        let updateSession = "UPDATE GameSessions SET NumMatches = " + gameRoomData.gameData.matchCount + " "
+        let updateSession = "UPDATE GameSessions SET " + wallString + "NumMatches = " + gameRoomData.gameData.matchCount + " "
             + "WHERE Id = " + gameRoomData.sessionId;
         database.query(updateSession);
 
@@ -441,7 +571,7 @@ gameRoomCallbacks = {
             }
         }
 
-        let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers) "
+        let insertMatch = "INSERT INTO " + wallString + "GameMatches (SessionId, BeginTimestamp, NumUsers) "
             + "VALUES ("
             + gameRoomData.sessionId + ", "
             + database.escape(dateTimeNow) + ", "
@@ -456,17 +586,49 @@ gameRoomCallbacks = {
                         let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : ++anonUsers;
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
-                        insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, UserId, Registered, " +
-                            "BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                            + gameRoomData.sessionId + ", "
-                            + results.insertId + ", "
-                            + database.escape(userId) + ", "
-                            + registered + ", "
-                            + database.escape(dateTimeNow) + ", "
-                            + gameRoomData.players[i].gameData.match.points + ", "
-                            + gameRoomData.players[i].gameData.match.pathLength + ", "
-                            + gameRoomData.players[i].gameData.match.time + ", "
-                            + winner + "); ";
+                        let isWallUser = gameRoomData.players[i].gameData.organizer === true;
+
+                        if (gameRoomData.isWall) {
+                            if (isWallUser) {
+                                insertAllParticipants += "INSERT INTO WallMatchParticipants (SessionId, MatchId, " +
+                                    "WallUserId, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
+                                    + gameRoomData.sessionId + ", "
+                                    + results.insertId + ", "
+                                    + database.escape(userId) + ", "
+                                    + "1, "
+                                    + database.escape(dateTimeNow) + ", "
+                                    + gameRoomData.players[i].gameData.match.points + ", "
+                                    + gameRoomData.players[i].gameData.match.pathLength + ", "
+                                    + gameRoomData.players[i].gameData.match.time + ", "
+                                    + winner + "); ";
+                            } else {
+                                insertAllParticipants += "INSERT INTO WallMatchParticipants (SessionId, MatchId, " +
+                                    "UserId, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
+                                    + gameRoomData.sessionId + ", "
+                                    + results.insertId + ", "
+                                    + database.escape(userId) + ", "
+                                    + registered + ", "
+                                    + "0, "
+                                    + database.escape(dateTimeNow) + ", "
+                                    + gameRoomData.players[i].gameData.match.points + ", "
+                                    + gameRoomData.players[i].gameData.match.pathLength + ", "
+                                    + gameRoomData.players[i].gameData.match.time + ", "
+                                    + winner + "); ";
+                            }
+
+                        } else {
+                            insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, UserId, Registered, " +
+                                "BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
+                                + gameRoomData.sessionId + ", "
+                                + results.insertId + ", "
+                                + database.escape(userId) + ", "
+                                + registered + ", "
+                                + database.escape(dateTimeNow) + ", "
+                                + gameRoomData.players[i].gameData.match.points + ", "
+                                + gameRoomData.players[i].gameData.match.pathLength + ", "
+                                + gameRoomData.players[i].gameData.match.time + ", "
+                                + winner + "); ";
+                        }
                     }
                 }
                 if (insertAllParticipants !== '') {
