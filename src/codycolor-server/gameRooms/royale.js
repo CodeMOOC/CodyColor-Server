@@ -99,7 +99,7 @@
 
         } else if (message.general.code === '0000') {
             // code 0000 nella richiesta: il client vuole creare una nuova partita
-            result = addOrganizerPlayer();
+            result = addOrganizerPlayer(message.wallUser);
             organizer = true;
 
         } else if (message.general.code !== undefined) {
@@ -134,12 +134,23 @@
         gameRooms[result.gameRoomId].players[result.playerId].gameData.playerId = result.playerId;
 
         if (organizer) {
-            gameRooms[result.gameRoomId].players[result.playerId].gameData.organizer = true;
             gameRooms[result.gameRoomId].gameData.timerSetting = message.general.timerSetting;
             gameRooms[result.gameRoomId].gameData.gameName = message.general.gameName;
             gameRooms[result.gameRoomId].gameData.maxPlayersSetting = message.general.maxPlayersSetting;
             gameRooms[result.gameRoomId].startDate = message.general.startDate;
             gameRooms[result.gameRoomId].gameData.scheduledStart = message.general.startDate !== undefined;
+        }
+
+        // poni come organizzatore regolarmente nel caso di un match normale,
+        // o se si è il primo umano in un wallMatch, nel caso di un un match Wall
+        if ((organizer && message.wallUser !== true) || isFirstHumanInWallMatch(result.gameRoomId, result.playerId)) {
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.organizer = true;
+        }
+
+        // poni in ready il giocatore wall
+        if (!!message.wallUser && result.playerId === 0) {
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.ready = true;
+            console.log("Set to ready!")
         }
 
         // nel caso in cui la partita sia ad avvio programmato, calcola i millisecondi mancanti all'avvio
@@ -177,6 +188,11 @@
 
         callbacks.onGameRoomsUpdated();
         return result;
+    };
+
+
+    let isFirstHumanInWallMatch = function(gameRoomId, playerId) {
+        return gameRooms[gameRoomId].isWall && playerId === 1;
     };
 
 
@@ -302,13 +318,16 @@
         // libera la game room, se necessario, dopo la rimozione dell'utente. Alternative per la rimozione:
         // 1. la game room non esiste
         // 2. c'è solo un giocatore durante il gioco;
-        // 3. oppure è uscito l'organizzatore di una partita instant durante mmaking
+        // 3. è uscito l'organizzatore di una partita instant durante mmaking
+        // 4. si è scollegato il wall, durante una partita wall
         if ((!gameRoomExists(message.gameRoomId)) ||
             (gameRooms[message.gameRoomId].gameData.state !== utils.states.mmaking
                 && utils.countValidPlayers(gameRooms, message.gameRoomId) <= 1) ||
-            (message.playerId === 0
+            (gameRooms[message.gameRoomId].players[message.gameRoomId].gameData.organizer === true
                 && !gameRooms[message.gameRoomId].gameData.scheduledStart
-                &&  gameRooms[message.gameRoomId].gameData.state === utils.states.mmaking)) {
+                &&  gameRooms[message.gameRoomId].gameData.state === utils.states.mmaking) ||
+            (message.playerId === 0
+                && gameRooms[message.gameRoomId].isWall)) {
 
             clearGameRoom(message.gameRoomId);
             result.messages.push({
@@ -621,7 +640,7 @@
      * UTILITIES: metodi interni di appoggio, utilizzato nei vari Handle Methods.
      * -------------------------------------------------------------------------------------------- */
 
-    let addOrganizerPlayer = function () {
+    let addOrganizerPlayer = function (isWall) {
         let result = {
             success: false,
             gameRoomId: undefined,
@@ -635,7 +654,7 @@
                 result.gameRoomId = i;
                 result.playerId = 0;
                 result.success = true;
-                gameRooms[i] = generateGameRoom(i, utils.states.mmaking);
+                gameRooms[i] = generateGameRoom(i, utils.states.mmaking, isWall);
             }
         }
 
@@ -645,7 +664,7 @@
             result.playerId = 0;
             result.success = true;
             gameRooms.push(
-                generateGameRoom(result.gameRoomId, utils.states.mmaking)
+                generateGameRoom(result.gameRoomId, utils.states.mmaking, isWall)
             );
         }
 
@@ -736,10 +755,11 @@
         return gameRooms[gameRoomId] !== undefined;
     };
 
-    let generateGameRoom = function (gameRoomId, state) {
+    let generateGameRoom = function (gameRoomId, state, isWall) {
         return {
             players: [generateFreeSlot()],
             sessionId: undefined,
+            isWall: !!isWall,
             gameData: generateGeneralGameData(gameRoomId, state)
         };
     };
@@ -779,7 +799,8 @@
             return;
         }
 
-        if (gameRooms[gameRoomId].gameData.state === utils.states.mmaking) {
+        if (gameRooms[gameRoomId].gameData.state === utils.states.mmaking &&
+            !gameRooms[gameRoomId].gameData.scheduledStart) {
             // primo match: le partite INSTANT devono avere il primo giocatore (organizzatore) ready
             return slotExists(gameRoomId, 0) && gameRooms[gameRoomId].players[0].gameData.ready
                 && gameRooms[gameRoomId].gameData.scheduledStart === false;
@@ -787,7 +808,7 @@
         } else if (gameRooms[gameRoomId].gameData.state === utils.states.mmaking &&
             gameRooms[gameRoomId].gameData.scheduledStart) {
             // primo match: le partite SCHEDULED non vanno mai avviate in seguito a questo check
-            return false
+            return false;
 
         } else if (gameRooms[gameRoomId].gameData.state === utils.states.aftermatch) {
             // match seguenti: tutti i giocatori devono essere ready
