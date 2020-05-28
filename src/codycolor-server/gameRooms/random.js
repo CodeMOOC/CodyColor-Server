@@ -564,7 +564,7 @@
             time: -1,
             points: 0,
             pathLength: 0,
-            winner: true,
+            winner: false,
             animationEnded: false,
             positioned: false,
             startPosition: {

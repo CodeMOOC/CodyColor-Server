@@ -89,7 +89,7 @@
 
         } else if (message.general.code === '0000') {
             // code 0000 nella richiesta: il client vuole creare una nuova partita
-            result = addOrganizerPlayer();
+            result = addOrganizerPlayer(message.wallUser);
             organizer = true;
 
         } else if (message.general.code !== undefined) {
@@ -410,7 +410,7 @@
      * UTILITIES: metodi interni di appoggio, utilizzato nei vari Handle Methods.
      * -------------------------------------------------------------------------------------------- */
 
-    let addOrganizerPlayer = function() {
+    let addOrganizerPlayer = function(isWall) {
         let result = {
             success: false,
             gameRoomId: undefined,
@@ -424,7 +424,7 @@
                 result.gameRoomId = gRoomIndex;
                 result.playerId = 0;
                 result.success = true;
-                gameRooms[gRoomIndex] = generateGameRoom(gRoomIndex, utils.states.mmaking);
+                gameRooms[gRoomIndex] = generateGameRoom(gRoomIndex, utils.states.mmaking, isWall);
             }
         }
 
@@ -434,7 +434,7 @@
             result.playerId = 0;
             result.success = true;
             gameRooms.push(
-                generateGameRoom(result.gameRoomId, utils.states.mmaking)
+                generateGameRoom(result.gameRoomId, utils.states.mmaking, isWall)
             );
         }
 
@@ -497,10 +497,11 @@
     };
 
 
-    let generateGameRoom = function (gameRoomId, state) {
+    let generateGameRoom = function (gameRoomId, state, isWall) {
         return {
             players: [generateFreeSlot(), generateFreeSlot()],
             sessionId: undefined,
+            isWall: !!isWall,
             gameData: generateGeneralGameData(gameRoomId, state)
         };
     };
@@ -596,7 +597,7 @@
             time: -1,
             points: 0,
             pathLength: 0,
-            winner: true,
+            winner: false,
             animationEnded: false,
             positioned: false,
             startPosition: {

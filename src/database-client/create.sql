@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `CodyColor`.`MatchParticipants` (
    `MatchId` INT UNSIGNED NOT NULL,
    `UserId` VARBINARY(64) NOT NULL,
    `Registered` BIT(1) DEFAULT 0,
+   `IsWallUser` BIT(1) DEFAULT 0,
    `BeginTimestamp` DATETIME NOT NULL,
    `Score` TINYINT UNSIGNED NOT NULL,
    `PathLength` SMALLINT UNSIGNED NOT NULL,
@@ -80,6 +81,27 @@ CREATE TABLE IF NOT EXISTS `CodyColor`.`MatchParticipants` (
 ENGINE = InnoDB;
 
 
-SET SQL_MODE=@OLD_SQL_MODE;
-SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
-SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+CREATE TABLE IF NOT EXISTS `CodyColor`.`WallUsers` (
+   `Id` VARBINARY(64) NOT NULL,
+   `Name` VARCHAR(64) DEFAULT 'Anonymous',
+   `Surname` VARCHAR(64) DEFAULT 'Anonymous',
+   `Deleted` BIT(1) DEFAULT 0,
+
+   PRIMARY KEY (`Id`)
+)
+ENGINE = InnoDB;
+
+-- Aggiunge la colonna isWallUser alla tabella matchParticipants per permettere la wall authentication
+-- Necessario per compatibilità, in quanto la colonna isWallUser non era prevista nella prima versione del db.
+-- La procedura viene eseguita solo nel caso in cui la colonna non sia presente nella tabella
+-- https://stackoverflow.com/a/45548042
+DROP PROCEDURE IF EXISTS `addWallColumn`;
+DELIMITER //
+CREATE PROCEDURE `addWallColumn`()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  ALTER TABLE  `CodyColor`.`MatchParticipants` ADD COLUMN `IsWallUser` BIT(1) DEFAULT 0;
+END //
+DELIMITER ;
+CALL `addWallColumn`();
+DROP PROCEDURE `addWallColumn`;
