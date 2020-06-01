@@ -401,6 +401,7 @@
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
+                matchTime: utils.getLowerMatchTime(gameRooms, message.gameRoomId),
                 startPositions: utils.getStartPositions(gameRooms, message.gameRoomId),
                 aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
@@ -586,6 +587,7 @@
                 msgType: broker.messageTypes.s_startAnimation,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
+                matchTime: utils.getLowerMatchTime(gameRooms, message.gameRoomId),
                 startPositions: utils.getStartPositions(gameRooms, message.gameRoomId),
                 aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
