@@ -309,10 +309,11 @@
         };
         // success === true: fai uscire il giocatore
 
-        let wasPlayerOrganizer = gameRooms[message.gameRoomId].players[message.playerId].gameData.organizer === true;
+        let wasPlayerOrganizer = false;
 
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         if (slotExists(message.gameRoomId, message.playerId)) {
+            wasPlayerOrganizer = gameRooms[message.gameRoomId].players[message.playerId].gameData.organizer === true;
             clearTimeout(gameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
             gameRooms[message.gameRoomId].players[message.playerId] = generateFreeSlot();
         }
@@ -325,7 +326,7 @@
         if ((!gameRoomExists(message.gameRoomId)) ||
             (gameRooms[message.gameRoomId].gameData.state !== utils.states.mmaking
                 && utils.countValidPlayers(gameRooms, message.gameRoomId) <= 1) ||
-            (wasPlayerOrganizer
+            (!!wasPlayerOrganizer
                 && !gameRooms[message.gameRoomId].gameData.scheduledStart
                 &&  gameRooms[message.gameRoomId].gameData.state === utils.states.mmaking) ||
             (message.playerId === 0
