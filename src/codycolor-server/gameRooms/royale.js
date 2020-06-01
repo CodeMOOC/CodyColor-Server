@@ -147,10 +147,10 @@
             gameRooms[result.gameRoomId].players[result.playerId].gameData.organizer = true;
         }
 
-        // poni in ready il giocatore wall
+        // poni in ready il giocatore wall, e togli questo il flag organizer
         if (!!message.wallUser && result.playerId === 0) {
             gameRooms[result.gameRoomId].players[result.playerId].gameData.ready = true;
-            console.log("Set to ready!")
+            gameRooms[result.gameRoomId].players[result.playerId].gameData.organizer = false;
         }
 
         // nel caso in cui la partita sia ad avvio programmato, calcola i millisecondi mancanti all'avvio
@@ -309,6 +309,8 @@
         };
         // success === true: fai uscire il giocatore
 
+        let wasPlayerOrganizer = gameRooms[message.gameRoomId].players[message.playerId].gameData.organizer === true;
+
         // pulisci in maniera 'safe' lo slot giocatore, fermando i vari timer attivi
         if (slotExists(message.gameRoomId, message.playerId)) {
             clearTimeout(gameRooms[message.gameRoomId].players[message.playerId].heartBeatTimer);
@@ -317,13 +319,13 @@
 
         // libera la game room, se necessario, dopo la rimozione dell'utente. Alternative per la rimozione:
         // 1. la game room non esiste
-        // 2. c'è solo un giocatore durante il gioco;
+        // 2. c'è rimasto un solo giocatore, durante il gioco;
         // 3. è uscito l'organizzatore di una partita instant durante mmaking
         // 4. si è scollegato il wall, durante una partita wall
         if ((!gameRoomExists(message.gameRoomId)) ||
             (gameRooms[message.gameRoomId].gameData.state !== utils.states.mmaking
                 && utils.countValidPlayers(gameRooms, message.gameRoomId) <= 1) ||
-            (gameRooms[message.gameRoomId].players[message.gameRoomId].gameData.organizer === true
+            (wasPlayerOrganizer
                 && !gameRooms[message.gameRoomId].gameData.scheduledStart
                 &&  gameRooms[message.gameRoomId].gameData.state === utils.states.mmaking) ||
             (message.playerId === 0
@@ -793,6 +795,35 @@
     };
 
 
+    let organizerReady = function (gameRoomId) {
+        if (!gameRoomExists(gameRoomId)) {
+            return false;
+        }
+
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (gameRooms[gameRoomId].players[i].gameData.organizer
+                && gameRooms[gameRoomId].players[i].gameData.ready)
+                return true;
+        }
+
+        return false;
+    };
+
+
+    let allPlayersReady = function(gameRoomId) {
+        let allReady = true;
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (gameRooms[gameRoomId].players[i].occupiedSlot &&
+                !gameRooms[gameRoomId].players[i].gameData.ready) {
+                allReady = false;
+                break;
+            }
+        }
+
+        return allReady;
+    }
+
+
     // controllo per stabilire se il match vada avviato, senza considerare il numero di giocatori
     let startMatchCheck = function (gameRoomId) {
         if (!gameRoomExists(gameRoomId)) {
@@ -801,9 +832,8 @@
 
         if (gameRooms[gameRoomId].gameData.state === utils.states.mmaking &&
             !gameRooms[gameRoomId].gameData.scheduledStart) {
-            // primo match: le partite INSTANT devono avere il primo giocatore (organizzatore) ready
-            return slotExists(gameRoomId, 0) && gameRooms[gameRoomId].players[0].gameData.ready
-                && gameRooms[gameRoomId].gameData.scheduledStart === false;
+            // primo match: le partite INSTANT devono avere l'organizzatore ready
+            return organizerReady(gameRoomId);
 
         } else if (gameRooms[gameRoomId].gameData.state === utils.states.mmaking &&
             gameRooms[gameRoomId].gameData.scheduledStart) {
@@ -812,16 +842,7 @@
 
         } else if (gameRooms[gameRoomId].gameData.state === utils.states.aftermatch) {
             // match seguenti: tutti i giocatori devono essere ready
-            let allReady = true;
-            for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
-                if (gameRooms[gameRoomId].players[i].occupiedSlot &&
-                    !gameRooms[gameRoomId].players[i].gameData.ready) {
-                    allReady = false;
-                    break;
-                }
-            }
-
-            return allReady;
+            return allPlayersReady(gameRoomId);
         }
     };
 
