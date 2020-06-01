@@ -379,6 +379,19 @@
         return startPositions;
     };
 
+    // restituisce il time con il valore più basso all'interno di una game room. Utilizzato per porre
+    // un valore unico ti timer stop in una partita royale
+    module.exports.getLowerMatchTime = function(gameRooms, gameRoomId) {
+        let lowerMatchTime = 0;
+
+        for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
+            if (i === 0 || gameRooms[gameRoomId].players[i].gameData.match.time < lowerMatchTime)
+                lowerMatchTime = gameRooms[gameRoomId].players[i].gameData.match.time;
+        }
+
+        return lowerMatchTime;
+    };
+
 
     // identifica l'evenienza di un pareggio totale. Assumiamo che ciò si può verificare solo quando nessuno degli
     // avversari piazza il proprio roby, ovvero nel caso in cui tutti i pathLength siano a 0
