@@ -17,7 +17,7 @@ cmd:
 
 .PHONY: up
 up:
-	${DC} up -d
+	${DC} up -d server
 	${DC} ps
 	@echo
 	@echo 'CodyColor service is now up'
@@ -35,7 +35,7 @@ rs:
 rebuild:
 	${DC} rm -sf server
 	${DC} build server
-	${DC} up -d
+	${DC} up -d server
 
 .PHONY: mysql
 mysql:
