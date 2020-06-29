@@ -385,7 +385,9 @@
         let lowerMatchTime = 0;
 
         for (let i = 0; i < gameRooms[gameRoomId].players.length; i++) {
-            if (i === 0 || gameRooms[gameRoomId].players[i].gameData.match.time < lowerMatchTime)
+            if (i === 0
+                || (gameRooms[gameRoomId].players[i].gameData.match.time < lowerMatchTime
+                    && gameRooms[gameRoomId].players[i].gameData.match.time >= 0))
                 lowerMatchTime = gameRooms[gameRoomId].players[i].gameData.match.time;
         }
 
