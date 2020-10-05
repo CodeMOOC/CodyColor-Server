@@ -1,6 +1,6 @@
 {
     "name": "codycolor-server",
-    "version": "3.3.3",
+    "version": "3.3.4",
     "description": "CodyColor server component",
     "main": "app.js",
     "scripts": {
