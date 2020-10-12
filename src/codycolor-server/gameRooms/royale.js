@@ -416,8 +416,10 @@
                 msgType: broker.messageTypes.s_endMatch,
                 gameRoomId: message.gameRoomId,
                 gameType: utils.gameTypes.royale,
+                matchRanking: utils.getMatchRanking(gameRooms, message.gameRoomId),
+                globalRanking: utils.getGlobalRanking(gameRooms, message.gameRoomId),
                 winnerId: utils.getWinnerId(gameRooms, message.gameRoomId),
-                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId),
+                aggregated: utils.getAggregatedData(gameRooms,message.gameRoomId)
             });
         }
 
