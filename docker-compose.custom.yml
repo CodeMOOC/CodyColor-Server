@@ -9,7 +9,6 @@ volumes:
 
 services:
   rabbit:
-    restart: unless-stopped
     labels:
     - "traefik.enable=true"
     - "traefik.docker.network=web"
@@ -21,12 +20,10 @@ services:
   server:
     volumes:
     - codycolor-data:/data:rw
-    restart: unless-stopped
 
   database:
     volumes:
     - codycolor-database:/var/lib/mysql:rw
-    restart: unless-stopped
 
   database-manager:
     environment:
