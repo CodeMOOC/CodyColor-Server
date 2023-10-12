@@ -11,7 +11,7 @@
         "is-typedarray": "^1.0.0",
         "lzutf8": "^0.5.5",
         "ms": "~2.1.1",
-        "mysql": "~2.17.1",
+        "mysql": "~2.18.0",
         "nan": "^2.13.2",
         "stompjs": "~2.3.3",
         "typedarray-to-buffer": "^3.1.5",
