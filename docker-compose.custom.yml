@@ -1,10 +1,7 @@
-# Custom deployment settings
-version: '3'
-
 volumes:
   codycolor-data:
     external: true
-  codycolor-database:
+  codycolor-database2:
     external: true
 
 services:
@@ -23,7 +20,7 @@ services:
 
   database:
     volumes:
-    - codycolor-database:/var/lib/mysql:rw
+    - codycolor-database2:/var/lib/mysql:rw
 
   database-manager:
     environment:

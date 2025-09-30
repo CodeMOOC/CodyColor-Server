@@ -1,107 +1,166 @@
--- Sample MySQL creation file
+-- phpMyAdmin SQL Dump
+-- version 5.2.2
+-- https://www.phpmyadmin.net/
+--
+-- Host: database
+-- Generation Time: Sep 29, 2025 at 11:29 PM
+-- Server version: 8.4.6
+-- PHP Version: 8.2.27
 
-SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
-SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
-SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='TRADITIONAL,ALLOW_INVALID_DATES';
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
--- -----------------------------------------------------
--- Schema CodyColor
--- -----------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS `CodyColor` DEFAULT CHARACTER SET utf8;
-USE `CodyColor`;
+--
+-- Database: `CodyColor`
+--
 
-CREATE TABLE IF NOT EXISTS `CodyColor`.`Users` (
-   `Id` VARBINARY(64) NOT NULL,
-   `Email` VARCHAR(320) DEFAULT NULL COLLATE latin1_general_ci,
-   `Nickname` VARCHAR(64) DEFAULT 'Anonymous',
-   `Deleted` BIT(1) DEFAULT 0,
+-- --------------------------------------------------------
 
-   PRIMARY KEY (`Id`)
-)
-ENGINE = InnoDB;
+--
+-- Table structure for table `GameMatches`
+--
 
-CREATE TABLE IF NOT EXISTS `CodyColor`.`GameSessions` (
-   `Id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-   `NumMatches` TINYINT UNSIGNED NOT NULL,
-   `Type` CHAR(16),
-   `BeginTimestamp` DATETIME NOT NULL,
-   `MatchDurationMs` MEDIUMINT UNSIGNED DEFAULT 30000,
+CREATE TABLE `GameMatches` (
+  `Id` int UNSIGNED NOT NULL,
+  `SessionId` int UNSIGNED NOT NULL,
+  `BeginTimestamp` datetime NOT NULL,
+  `NumUsers` tinyint UNSIGNED DEFAULT '2'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-   PRIMARY KEY (`Id`)
-)
-ENGINE = InnoDB;
+-- --------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS `CodyColor`.`GameMatches` (
-   `Id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-   `SessionId` INT UNSIGNED NOT NULL,
-   `BeginTimestamp` DATETIME NOT NULL,
-   `NumUsers` TINYINT UNSIGNED DEFAULT 2,
+--
+-- Table structure for table `GameSessions`
+--
 
-   PRIMARY KEY (`Id`),
-   UNIQUE INDEX `MatchId_idx` (`Id` ASC),
-   INDEX `SessionId_idx` (`SessionId` ASC),
-   CONSTRAINT `fk_GameMatches_SessionId`
-     FOREIGN KEY `SessionId_idx` (`SessionId`)
-     REFERENCES `CodyColor`.`GameSessions` (`Id`)
-     ON DELETE RESTRICT
-     ON UPDATE RESTRICT
-)
-ENGINE = InnoDB;
+CREATE TABLE `GameSessions` (
+  `Id` int UNSIGNED NOT NULL,
+  `NumMatches` tinyint UNSIGNED NOT NULL,
+  `Type` char(16) CHARACTER SET ascii COLLATE ascii_general_ci DEFAULT NULL,
+  `BeginTimestamp` datetime NOT NULL,
+  `MatchDurationMs` mediumint UNSIGNED DEFAULT '30000'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `CodyColor`.`MatchParticipants` (
-   `SessionId` INT UNSIGNED NOT NULL,
-   `MatchId` INT UNSIGNED NOT NULL,
-   `UserId` VARBINARY(64) NOT NULL,
-   `Registered` BIT(1) DEFAULT 0,
-   `IsWallUser` BIT(1) DEFAULT 0,
-   `BeginTimestamp` DATETIME NOT NULL,
-   `Score` TINYINT UNSIGNED NOT NULL,
-   `PathLength` SMALLINT UNSIGNED NOT NULL,
-   `TimeMs` MEDIUMINT UNSIGNED NOT NULL,
-   `Winner` BIT(1) DEFAULT 0,
+-- --------------------------------------------------------
 
-   PRIMARY KEY (`SessionId`, `MatchId`, `UserId`),
-   INDEX `SessionId_idx` (`SessionId` ASC),
-   CONSTRAINT `fk_MatchParticipants_SessionId`
-     FOREIGN KEY `SessionId_idx` (`SessionId`)
-     REFERENCES `CodyColor`.`GameSessions` (`Id`)
-     ON DELETE RESTRICT
-     ON UPDATE RESTRICT,
-   INDEX `MatchId_idx` (`MatchId` ASC),
-   CONSTRAINT `fk_MatchParticipants_MatchId`
-     FOREIGN KEY `MatchId_idx` (`MatchId`)
-     REFERENCES `CodyColor`.`GameMatches` (`Id`)
-     ON DELETE RESTRICT
-     ON UPDATE RESTRICT,
-   INDEX `Score_idx` (`Score` DESC),
-   INDEX `ScorePerDay_idx` (`BeginTimestamp` ASC, `Score` DESC),
-   INDEX `Path_idx` (`PathLength` DESC),
-   INDEX `PathPerDay_idx` (`BeginTimestamp` ASC, `PathLength` DESC)
-)
-ENGINE = InnoDB;
+--
+-- Table structure for table `MatchParticipants`
+--
 
+CREATE TABLE `MatchParticipants` (
+  `SessionId` int UNSIGNED NOT NULL,
+  `MatchId` int UNSIGNED NOT NULL,
+  `Ordinal` smallint UNSIGNED NOT NULL,
+  `Nickname` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `UserId` varbinary(64) DEFAULT NULL,
+  `Registered` bit(1) DEFAULT b'0',
+  `BeginTimestamp` datetime NOT NULL,
+  `Score` tinyint UNSIGNED NOT NULL,
+  `PathLength` smallint UNSIGNED NOT NULL,
+  `TimeMs` mediumint UNSIGNED NOT NULL,
+  `Winner` bit(1) DEFAULT b'0',
+  `IsWallUser` bit(1) DEFAULT b'0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `CodyColor`.`WallUsers` (
-   `Id` VARBINARY(64) NOT NULL,
-   `Name` VARCHAR(64) DEFAULT 'Anonymous',
-   `Surname` VARCHAR(64) DEFAULT 'Anonymous',
-   `Deleted` BIT(1) DEFAULT 0,
+-- --------------------------------------------------------
 
-   PRIMARY KEY (`Id`)
-)
-ENGINE = InnoDB;
+--
+-- Table structure for table `Users`
+--
 
--- Aggiunge la colonna isWallUser alla tabella matchParticipants per permettere la wall authentication
--- Necessario per compatibilità, in quanto la colonna isWallUser non era prevista nella prima versione del db.
--- La procedura viene eseguita solo nel caso in cui la colonna non sia presente nella tabella
--- https://stackoverflow.com/a/45548042
-DROP PROCEDURE IF EXISTS `addWallColumn`;
-DELIMITER //
-CREATE PROCEDURE `addWallColumn`()
-BEGIN
-  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
-  ALTER TABLE  `CodyColor`.`MatchParticipants` ADD COLUMN `IsWallUser` BIT(1) DEFAULT 0;
-END //
-DELIMITER ;
-CALL `addWallColumn`();
-DROP PROCEDURE `addWallColumn`;
+CREATE TABLE `Users` (
+  `Id` varbinary(64) NOT NULL,
+  `Email` varchar(320) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Nickname` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Anonymous',
+  `Deleted` bit(1) DEFAULT b'0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `WallUsers`
+--
+
+CREATE TABLE `WallUsers` (
+  `Id` varbinary(64) NOT NULL,
+  `Name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Anonymous',
+  `Surname` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Anonymous',
+  `Deleted` bit(1) DEFAULT b'0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `GameMatches`
+--
+ALTER TABLE `GameMatches`
+  ADD PRIMARY KEY (`Id`),
+  ADD UNIQUE KEY `MatchId_idx` (`Id`),
+  ADD KEY `SessionId_idx` (`SessionId`);
+
+--
+-- Indexes for table `GameSessions`
+--
+ALTER TABLE `GameSessions`
+  ADD PRIMARY KEY (`Id`);
+
+--
+-- Indexes for table `MatchParticipants`
+--
+ALTER TABLE `MatchParticipants`
+  ADD PRIMARY KEY (`SessionId`,`MatchId`,`Ordinal`) USING BTREE,
+  ADD KEY `SessionId_idx` (`SessionId`),
+  ADD KEY `MatchId_idx` (`MatchId`),
+  ADD KEY `Score_idx` (`Score`),
+  ADD KEY `ScorePerDay_idx` (`BeginTimestamp`,`Score`),
+  ADD KEY `Path_idx` (`PathLength`),
+  ADD KEY `PathPerDay_idx` (`BeginTimestamp`,`PathLength`);
+
+--
+-- Indexes for table `Users`
+--
+ALTER TABLE `Users`
+  ADD PRIMARY KEY (`Id`);
+
+--
+-- Indexes for table `WallUsers`
+--
+ALTER TABLE `WallUsers`
+  ADD PRIMARY KEY (`Id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `GameMatches`
+--
+ALTER TABLE `GameMatches`
+  MODIFY `Id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `GameSessions`
+--
+ALTER TABLE `GameSessions`
+  MODIFY `Id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `GameMatches`
+--
+ALTER TABLE `GameMatches`
+  ADD CONSTRAINT `fk_GameMatches_SessionId` FOREIGN KEY (`SessionId`) REFERENCES `GameSessions` (`Id`);
+
+--
+-- Constraints for table `MatchParticipants`
+--
+ALTER TABLE `MatchParticipants`
+  ADD CONSTRAINT `fk_MatchParticipants_MatchId` FOREIGN KEY (`MatchId`) REFERENCES `GameMatches` (`Id`),
+  ADD CONSTRAINT `fk_MatchParticipants_SessionId` FOREIGN KEY (`SessionId`) REFERENCES `GameSessions` (`Id`);
+COMMIT;
