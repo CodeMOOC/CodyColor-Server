@@ -590,7 +590,7 @@ gameRoomCallbacks = {
 
                         let ordinal = ++anonUsers;
 
-                        let nickname = gameRoomData.players[i].userId !== undefined ? database.escape(gameRoomData.players[i].gameData.nickname) : null;
+                        let nickname = database.escape(gameRoomData.players[i].gameData.nickname);
 
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
