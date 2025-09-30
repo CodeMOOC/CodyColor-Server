@@ -586,11 +586,7 @@ gameRoomCallbacks = {
                 let insertAllParticipants = '';
                 for (let i = 0; i < gameRoomData.players.length; i++) {
                     if (gameRoomData.players[i].occupiedSlot) {
-                        let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : null;
-
                         let ordinal = ++anonUsers;
-
-                        let nickname = database.escape(gameRoomData.players[i].gameData.nickname);
 
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
@@ -602,9 +598,9 @@ gameRoomCallbacks = {
                             "VALUES (" +
                             gameRoomData.sessionId + ", " +
                             results.insertId + ", " +
-                            database.escape(userId) + ", " +
+                            gameRoomData.players[i].userId !== undefined ? database.escape(gameRoomData.players[i].userId) : null + ", " +
                             ordinal + ", " +
-                            database.escape(nickname) + ", " +
+                            database.escape(gameRoomData.players[i].gameData.nickname) + ", " +
                             registered + ", " +
                             isWallUser + ", " +
                             database.escape(dateTimeNow) + ", " +
