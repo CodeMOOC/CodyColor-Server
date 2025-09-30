@@ -586,23 +586,53 @@ gameRoomCallbacks = {
                 let insertAllParticipants = '';
                 for (let i = 0; i < gameRoomData.players.length; i++) {
                     if (gameRoomData.players[i].occupiedSlot) {
-                        let userId = gameRoomData.players[i].userId !== undefined ? gameRoomData.players[i].userId : ++anonUsers;
+                        let userId =
+                        gameRoomData.players[i].userId !== undefined 
+                        ? gameRoomData.players[i].userId 
+                        : null;
+                        
+                        let ordinal = ++anonUsers;
+                        
+                        let nickname;
+                        
+                        if (gameRoomData.players[i].userId !== undefined) {nickname = database.escape(
+                            gameRoomData.players[i].gameData.nickname
+                        );
+                        } else {
+                            nickname = null;
+                        }
+
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
                         let isWallUser = (gameRoomData.players[i].gameData.organizer && gameRoomData.isWall) ? 1 : 0;
 
-                        insertAllParticipants += "INSERT INTO MatchParticipants (SessionId, MatchId, " +
-                            "UserId, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES ("
-                            + gameRoomData.sessionId + ", "
-                            + results.insertId + ", "
-                            + database.escape(userId) + ", "
-                            + registered + ", "
-                            + isWallUser + ", "
-                            + database.escape(dateTimeNow) + ", "
-                            + gameRoomData.players[i].gameData.match.points + ", "
-                            + gameRoomData.players[i].gameData.match.pathLength + ", "
-                            + gameRoomData.players[i].gameData.match.time + ", "
-                            + winner + "); ";
+                        insertAllParticipants +=
+                            "INSERT INTO MatchParticipants (SessionId, MatchId, " +
+                            "UserId, Ordinal, Nickname, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) VALUES (" +
+                            gameRoomData.sessionId +
+                            ", " +
+                            results.insertId +
+                            ", " +
+                            database.escape(userId) +
+                            ", " +
+                            ordinal +
+                            ", " +
+                            database.escape(nickname) +
+                            ", " +
+                            registered +
+                            ", " +
+                            isWallUser +
+                            ", " +
+                            database.escape(dateTimeNow) +
+                            ", " +
+                            gameRoomData.players[i].gameData.match.points +
+                            ", " +
+                            gameRoomData.players[i].gameData.match.pathLength +
+                            ", " +
+                            gameRoomData.players[i].gameData.match.time +
+                            ", " +
+                            winner +
+                            "); ";
                     }
                 }
                 if (insertAllParticipants !== '') {
