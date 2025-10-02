@@ -263,7 +263,40 @@ broker.connect({
             });
         }
 
-    }, onUserDeleteRequest: function(message) {
+    },
+    onEditNickname: function(message) {
+        // message.userId: ID dell'utente
+        // message.newNickname: nuovo nickname scelto
+        logs.printLog('User ' + message.userId + ' is trying to edit nickname to ' + message.newNickname);
+    
+        const escapedNickname = database.escape(message.newNickname);
+        const escapedUserId = database.escape(message.userId);
+    
+        const updateQuery = "UPDATE Users SET Nickname = " + escapedNickname + " WHERE Id = " + escapedUserId;
+    
+        database.query(updateQuery, function(results, error) {
+            let response;
+            if (error) {
+                logs.printLog('Error updating nickname for user ' + message.userId + ': ' + error);
+                response = {
+                    msgType: broker.messageTypes.s_editNicknameResponse,
+                    success: false,
+                    correlationId: message.correlationId
+                };
+            } else {
+                logs.printLog('Nickname updated successfully for user ' + message.userId);
+                response = {
+                    msgType: broker.messageTypes.s_editNicknameResponse,
+                    success: true,
+                    newNickname: message.newNickname,
+                    correlationId: message.correlationId
+                };
+            }
+            broker.sendInClientControlQueue(message.correlationId, response);
+            logs.printWaiting();
+        });
+    },
+    onUserDeleteRequest: function(message) {
         // un utente vuole rimuovere il proprio account. Elimina l'email collegata l'account e imposta
         // l'utente come eliminato
         logs.printLog('A user is trying to delete his account');
