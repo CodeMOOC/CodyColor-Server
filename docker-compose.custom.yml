@@ -1,7 +1,7 @@
 volumes:
   codycolor-data:
     external: true
-  codycolor-database2:
+  codycolor-database3:
     external: true
 
 services:
@@ -20,7 +20,7 @@ services:
 
   database:
     volumes:
-    - codycolor-database2:/var/lib/mysql:rw
+    - codycolor-database3:/var/lib/mysql:rw
 
   database-manager:
     environment:

@@ -1,6 +1,6 @@
 {
     "name": "codycolor-server",
-    "version": "3.3.4",
+    "version": "3.4.0",
     "description": "CodyColor server component",
     "main": "app.js",
     "scripts": {
@@ -23,11 +23,13 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/digit-srl/CodyColorServer"
+        "url": "https://github.com/CodeMOOC/CodyColor-Server"
     },
     "author": "Riccardo Maldini",
     "contributors": [
-        "Riccardo Maldini <riccardo.maldini@gmail.com>"
+        "Riccardo Maldini <riccardo.maldini@gmail.com>",
+        "Miriam Petrocchi <miriam.petrocchi94@gmail.com>",
+        "Lorenz Cuno Klopfenstein <lorenz@klopfenste.in>"
     ],
     "license": "MIT",
     "devDependencies": {}
