@@ -264,7 +264,7 @@ broker.connect({
         }
 
     },
-    onEditNickname: function(message) {
+    onEditNicknameRequest: function(message) {
         // message.userId: ID dell'utente
         // message.newNickname: nuovo nickname scelto
         logs.printLog('User ' + message.userId + ' is trying to edit nickname to ' + message.newNickname);
