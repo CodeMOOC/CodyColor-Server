@@ -176,6 +176,19 @@
             return result;
         }
 
+        const nickname = message.nickname || "";
+        if (nickname.length < 3) {
+            result.success = false;
+            result.messages.push({
+                msgType: broker.messageTypes.s_validationError,
+                gameType: utils.gameTypes.custom,
+                gameRoomId: message.gameRoomId,
+                playerId: message.playerId,
+                reason: "NICKNAME_TOO_SHORT"
+            });
+            return result;
+        }
+
         gameRooms[message.gameRoomId].players[message.playerId].gameData.validated = true;
         gameRooms[message.gameRoomId].players[message.playerId].gameData.nickname = message.nickname;
 

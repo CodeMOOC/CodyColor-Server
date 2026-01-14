@@ -131,7 +131,7 @@ broker.connect({
                     let surnameValue = undefined;
                     if (results[0] !== undefined
                         && results[0][0] !== undefined
-                        && results[0][0].name !== undefined) {
+                        && results[0][0].surname !== undefined) {
                         surnameValue = results[0][0].surname;
                     }
 
@@ -141,7 +141,6 @@ broker.connect({
                         && results[1][0].playerMatches !== undefined) {
                         playerMatchesValue = results[1][0].playerMatches;
                     }
-
 
                     let bestMatchBotValue = undefined;
                     if (results[2] !== undefined
@@ -201,7 +200,12 @@ broker.connect({
                 "ORDER BY points DESC, pathLength DESC, time DESC " +
                 "LIMIT 1; ";
 
-            let queries = searchUser + userTotalPoints + userWins + userAvgPoints + bestMatch;
+            let userTotalMatches =
+                "SELECT COUNT(DISTINCT MatchId) as totalMatches " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + "; ";
+
+            let queries = searchUser + userTotalPoints + userWins + userAvgPoints + bestMatch + userTotalMatches;
 
             database.query(queries, function (results, error) {
                 let response;
@@ -254,6 +258,7 @@ broker.connect({
                         wonMatches: wonMatchesValue,
                         avgPoints: avgPointsValue,
                         bestMatch: bestMatchValue,
+                        totalMatches: results[5][0] !== undefined ? results[5][0].totalMatches : 0,
                         correlationId: message.correlationId
                     };
                 }
@@ -262,7 +267,6 @@ broker.connect({
                 logs.printWaiting();
             });
         }
-
     },
     onEditNicknameRequest: function(message) {
         // message.userId: ID dell'utente
@@ -333,6 +337,10 @@ broker.connect({
     }, onRankingRequest: function(message) {
         // un client ha richiesto dati relativi alle classifiche. Restituiscili.
         logs.printLog('Received ranking request');
+
+        let hasUser = message.userId !== undefined && message.userId !== null;
+        let escapedUserId = hasUser ? database.escape(message.userId) : null;
+
         let top10PointsDaily =
             "SELECT U.Nickname AS nickname, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
             "FROM Users U INNER JOIN MatchParticipants MP " +
@@ -401,7 +409,67 @@ broker.connect({
             "ORDER BY points DESC " +
             "LIMIT 10;";
 
-        let queries = top10PointsDaily + top10PointsGlobal + top10MatchDaily + top10MatchGlobal;
+        let myGlobalPointsStats = hasUser ?
+            "SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches " +
+            "FROM MatchParticipants " +
+            "WHERE Registered = 1 AND UserId = " + escapedUserId + "; "
+            : "";
+
+        let myGlobalPointsRank = hasUser ?
+                    "SELECT 1 + COUNT(*) AS position " +
+                    "FROM (" +
+                    "   SELECT U.Id, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
+                    "   FROM Users U " +
+                    "   JOIN MatchParticipants MP ON U.Id = MP.UserId " +
+                    "   WHERE MP.Registered = 1 " +
+                    "   GROUP BY U.Id" +
+                    ") ranked " +
+                    "WHERE " +
+                    "   points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ") " +
+                    "   OR (points = (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ") " +
+                    "       AND wonMatches > (SELECT SUM(Winner) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ")); "
+                    : "";
+
+        let myBestGlobalMatch = hasUser
+                    ? "SELECT " +
+                    "MP.Score AS points, " +
+                    "MP.PathLength AS pathLength, " +
+                    "MP.TimeMs AS time " +
+                    "FROM MatchParticipants MP " +
+                    "WHERE MP.Registered = 1 " +
+                    "AND MP.UserId = " + escapedUserId + " " +
+                    "ORDER BY MP.Score DESC, MP.PathLength DESC, MP.TimeMs DESC " +
+                    "LIMIT 1; "
+                    : "";
+
+        let myGlobalMatchRank = hasUser
+                    ? "SELECT 1 + COUNT(*) AS position " +
+                      "FROM MatchParticipants MP " +
+                      "WHERE MP.Registered = 1 " +
+                      "AND ( " +
+                      "   MP.Score > (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "   OR ( " +
+                      "       MP.Score = (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "       AND MP.PathLength > (SELECT PathLength FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "   ) " +
+                      "   OR ( " +
+                      "       MP.Score = (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "       AND MP.PathLength = (SELECT PathLength FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "       AND MP.TimeMs > (SELECT TimeMs FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
+                      "   ) " +
+                      "); "
+                    : "";
+
+        let queries =
+                    top10PointsDaily +
+                    top10PointsGlobal +
+                    top10MatchDaily +
+                    top10MatchGlobal +
+                    myGlobalPointsStats +
+                    myGlobalPointsRank +
+                    myBestGlobalMatch +
+                    myGlobalMatchRank;
+                  
         database.query(queries, function (results, error) {
             let response = {};
             if (error) {
@@ -412,12 +480,41 @@ broker.connect({
                 };
 
             } else {
+                const myGlobalPointsStats = results[4]?.[0] ?? null;
+                const myGlobalPointsRankRaw = results[5]?.[0] ?? null;
+                const myBestGlobalMatch = results[6]?.[0] ?? null;
+                const myGlobalMatchRankRaw = results[7]?.[0] ?? null;
+            
                 response = {
                     msgType: broker.messageTypes.s_rankingsResponse,
                     'top10PointsDaily': JSON.stringify(results[0]),
                     'top10PointsGlobal': JSON.stringify(results[1]),
                     'top10MatchDaily': JSON.stringify(results[2]),
                     'top10MatchGlobal': JSON.stringify(results[3]),
+                    
+                    myGlobalPointsRank: myGlobalPointsStats && myGlobalPointsRankRaw
+                        ? {
+                            position: myGlobalPointsRankRaw.position,
+                            points: myGlobalPointsStats.points,
+                            wonMatches: myGlobalPointsStats.wonMatches,
+                            inTop10: top10PointsGlobal.some(
+                                p => p.nickname === message.nickname
+                            )
+                        }
+                        : null,
+            
+                    myGlobalMatchRank: myBestGlobalMatch && myGlobalMatchRankRaw
+                        ? {
+                            position: myGlobalMatchRankRaw.position,
+                            points: myBestGlobalMatch.points,
+                            pathLength: myBestGlobalMatch.pathLength,
+                            time: myBestGlobalMatch.time,
+                            inTop10: top10MatchGlobal.some(
+                                m => m.nickname === message.nickname
+                            )
+                        }
+                        : null,
+            
                     success: true,
                     correlationId: message.correlationId,
                 };
