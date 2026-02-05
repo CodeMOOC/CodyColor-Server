@@ -480,11 +480,18 @@ broker.connect({
                 };
 
             } else {
-                const myGlobalPointsStats = results[4]?.[0] ?? null;
-                const myGlobalPointsRankRaw = results[5]?.[0] ?? null;
-                const myBestGlobalMatch = results[6]?.[0] ?? null;
-                const myGlobalMatchRankRaw = results[7]?.[0] ?? null;
-            
+                const myGlobalPointsStats =
+                results[4] && results[4][0] !== undefined ? results[4][0] : null;
+              
+              const myGlobalPointsRankRaw =
+                results[5] && results[5][0] !== undefined ? results[5][0] : null;
+              
+              const myBestGlobalMatch =
+                results[6] && results[6][0] !== undefined ? results[6][0] : null;
+              
+              const myGlobalMatchRankRaw =
+                results[7] && results[7][0] !== undefined ? results[7][0] : null;
+              
                 response = {
                     msgType: broker.messageTypes.s_rankingsResponse,
                     'top10PointsDaily': JSON.stringify(results[0]),
