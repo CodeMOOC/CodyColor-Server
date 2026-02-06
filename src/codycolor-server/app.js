@@ -258,7 +258,7 @@ broker.connect({
                         wonMatches: wonMatchesValue,
                         avgPoints: avgPointsValue,
                         bestMatch: bestMatchValue,
-                        totalMatches: results[5][0] !== undefined ? results[5][0].totalMatches : 0,
+                        totalMatches: results[5] && results[5][0] !== undefined ? results[5][0].totalMatches : 0,
                         correlationId: message.correlationId
                     };
                 }
@@ -338,7 +338,9 @@ broker.connect({
         // un client ha richiesto dati relativi alle classifiche. Restituiscili.
         logs.printLog('Received ranking request');
 
+        // Check if a userId exists in the message
         let hasUser = message.userId !== undefined && message.userId !== null;
+        // Escape or sanitize userId if it exists
         let escapedUserId = hasUser ? database.escape(message.userId) : null;
 
         let top10PointsDaily =
@@ -409,26 +411,28 @@ broker.connect({
             "ORDER BY points DESC " +
             "LIMIT 10;";
 
-        let myGlobalPointsStats = hasUser ?
-            "SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches " +
-            "FROM MatchParticipants " +
-            "WHERE Registered = 1 AND UserId = " + escapedUserId + "; "
+
+        let myGlobalPointsStats = hasUser ? 
+            `SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches 
+             FROM MatchParticipants 
+             WHERE Registered = 1 AND UserId = ${escapedUserId};` 
             : "";
 
-        let myGlobalPointsRank = hasUser ?
-                    "SELECT 1 + COUNT(*) AS position " +
-                    "FROM (" +
-                    "   SELECT U.Id, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
-                    "   FROM Users U " +
-                    "   JOIN MatchParticipants MP ON U.Id = MP.UserId " +
-                    "   WHERE MP.Registered = 1 " +
-                    "   GROUP BY U.Id" +
-                    ") ranked " +
-                    "WHERE " +
-                    "   points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ") " +
-                    "   OR (points = (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ") " +
-                    "       AND wonMatches > (SELECT SUM(Winner) FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + ")); "
-                    : "";
+
+        let myGlobalPointsRank = 
+        hasUser 
+                ? `SELECT 1 + COUNT(*) AS position
+                FROM (
+                 SELECT U.Id, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches
+                 FROM Users U
+                 JOIN MatchParticipants MP ON U.Id = MP.UserId
+                 WHERE MP.Registered = 1
+                 GROUP BY U.Id
+                ) ranked
+                WHERE points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId})
+                 OR (points = (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId})
+                    AND wonMatches > (SELECT SUM(Winner) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId}));`
+                :  "";
 
         let myBestGlobalMatch = hasUser
                     ? "SELECT " +
@@ -469,7 +473,7 @@ broker.connect({
                     myGlobalPointsRank +
                     myBestGlobalMatch +
                     myGlobalMatchRank;
-                  
+
         database.query(queries, function (results, error) {
             let response = {};
             if (error) {
@@ -504,7 +508,7 @@ broker.connect({
                             position: myGlobalPointsRankRaw.position,
                             points: myGlobalPointsStats.points,
                             wonMatches: myGlobalPointsStats.wonMatches,
-                            inTop10: top10PointsGlobal.some(
+                            inTop10: results[1].some(
                                 p => p.nickname === message.nickname
                             )
                         }
@@ -516,7 +520,7 @@ broker.connect({
                             points: myBestGlobalMatch.points,
                             pathLength: myBestGlobalMatch.pathLength,
                             time: myBestGlobalMatch.time,
-                            inTop10: top10MatchGlobal.some(
+                            inTop10: results[3].some(
                                 m => m.nickname === message.nickname
                             )
                         }
