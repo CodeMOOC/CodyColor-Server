@@ -399,23 +399,64 @@ broker.connect({
                 };
             } else {
                 if (message.wallUser) {
+                    var playerMatches = 0;
+                    if (results[0] && results[0][0] && results[0][0].playerMatches) {
+                        playerMatches = results[0][0].playerMatches;
+                    }
+
+                    var bestMatchBot = undefined;
+                    if (results[1] && results[1][0]) {
+                        bestMatchBot = results[1][0];
+                    }
+
+                    var bestMatchHuman = undefined;
+                    if (results[2] && results[2][0]) {
+                        bestMatchHuman = results[2][0];
+                    }
+
                     response = {
                         msgType: broker.messageTypes.s_userStatsResponse,
                         success: true,
-                        playerMatches: results[0]?.[0]?.playerMatches || 0,
-                        bestMatchBot: results[1]?.[0],
-                        bestMatchHuman: results[2]?.[0],
+                        playerMatches: playerMatches,
+                        bestMatchBot: bestMatchBot,
+                        bestMatchHuman: bestMatchHuman,
                         correlationId: message.correlationId
                     };
+                    
                 } else {
+                    var totalMatches = 0;
+                    if (results[0] && results[0][0] && results[0][0].totalMatches) {
+                        totalMatches = results[0][0].totalMatches;
+                    }
+                    
+                    var totalPoints = 0;
+                    if (results[1] && results[1][0] && results[1][0].totalPoints) {
+                        totalPoints = results[1][0].totalPoints;
+                    }
+                    
+                    var wonMatches = 0;
+                    if (results[2] && results[2][0] && results[2][0].wonMatches) {
+                        wonMatches = results[2][0].wonMatches;
+                    }
+                    
+                    var avgPoints = 0;
+                    if (results[3] && results[3][0] && results[3][0].avgPoints) {
+                        avgPoints = results[3][0].avgPoints;
+                    }
+                    
+                    var bestMatch = undefined;
+                    if (results[4] && results[4][0]) {
+                        bestMatch = results[4][0];
+                    }
+                    
                     response = {
                         msgType: broker.messageTypes.s_userStatsResponse,
                         success: true,
-                        totalMatches: results[0]?.[0]?.totalMatches || 0,
-                        totalPoints: results[1]?.[0]?.totalPoints || 0,
-                        wonMatches: results[2]?.[0]?.wonMatches || 0,
-                        avgPoints: results[3]?.[0]?.avgPoints || 0,
-                        bestMatch: results[4]?.[0],
+                        totalMatches: totalMatches,
+                        totalPoints: totalPoints,
+                        wonMatches: wonMatches,
+                        avgPoints: avgPoints,
+                        bestMatch: bestMatch,
                         correlationId: message.correlationId
                     };
                 }
