@@ -77,7 +77,7 @@ broker.connect({
 
 
 
-    }, onLogInRequest: function(message) {
+    }, oldonLogInRequest: function(message) {
         // un client vuole ottenere le informazioni del proprio account memorizzate nel db. Restituiscile
         // in caso l'userId corrisponda
         logs.printLog('A user is trying to log in');
@@ -88,10 +88,9 @@ broker.connect({
                 "WHERE Id = " + database.escape(message.userId) + "; ";
 
             let userTotalMatches =
-                "SELECT COUNT(*) as playerMatches " +
+                "SELECT COUNT(DISTINCT MatchId) as playerMatches " +
                 "FROM MatchParticipants " +
-                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1 " +
-                "GROUP BY UserId; ";
+                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1 ";
 
             let bestMatchBot =
                 "SELECT Score AS points, PathLength AS pathLength, TimeMs as time " +
@@ -267,6 +266,164 @@ broker.connect({
                 logs.printWaiting();
             });
         }
+    },
+    onLogInRequest: function (message) {
+        logs.printLog('A user is trying to log in');
+    
+        let searchUser;
+    
+        if (message.wallUser) {
+            searchUser =
+                "SELECT Name AS name, Surname AS surname " +
+                "FROM WallUsers " +
+                "WHERE Id = " + database.escape(message.userId) + "; ";
+        } else {
+            searchUser =
+                "SELECT Nickname AS nickname " +
+                "FROM Users " +
+                "WHERE Id = " + database.escape(message.userId) + "; ";
+        }
+    
+        database.query(searchUser, function (results, error) {
+            let response;
+    
+            if (error) {
+                response = {
+                    msgType: broker.messageTypes.s_authResponse,
+                    success: false,
+                    correlationId: message.correlationId
+                };
+            } else {
+                if (message.wallUser) {
+                    let row = results[0] && results[0][0];
+    
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: !!row,
+                        name: row ? row.name : undefined,
+                        surname: row ? row.surname : undefined,
+                        correlationId: message.correlationId
+                    };
+                } else {
+                    let row = results[0] && results[0][0];
+    
+                    response = {
+                        msgType: broker.messageTypes.s_authResponse,
+                        success: !!row,
+                        nickname: row ? row.nickname : undefined,
+                        correlationId: message.correlationId
+                    };
+                }
+            }
+    
+            broker.sendInClientControlQueue(message.correlationId, response);
+            logs.printWaiting();
+        });
+    },
+    onGetUserStatsRequest: function (message) {
+        logs.printLog('User requested statistics');
+    
+        let queries = "";
+    
+        if (message.wallUser) {
+    
+            let userTotalMatches =
+                "SELECT COUNT(DISTINCT MatchId) AS playerMatches " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1; ";
+    
+            let bestMatchBot =
+                "SELECT Score AS points, PathLength AS pathLength, TimeMs AS time " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " AND IsWallUser = 1 " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
+    
+            let bestMatchHuman =
+                "SELECT MP1.Score AS points, MP1.PathLength AS pathLength, MP1.TimeMs AS time " +
+                "FROM MatchParticipants MP1 " +
+                "WHERE MP1.MatchId IN ( " +
+                "   SELECT MatchId FROM MatchParticipants MP2 " +
+                "   WHERE MP2.UserId = " + database.escape(message.userId) + " AND MP2.IsWallUser = 1 " +
+                ") AND MP1.IsWallUser = 0 " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
+    
+            queries = userTotalMatches + bestMatchBot + bestMatchHuman;
+    
+        } else {
+    
+            let userTotalMatches =
+                "SELECT COUNT(DISTINCT MatchId) AS totalMatches " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + "; ";
+    
+            let userTotalPoints =
+                "SELECT SUM(Score) AS totalPoints " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + "; ";
+    
+            let userWins =
+                "SELECT SUM(Winner) AS wonMatches " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + "; ";
+    
+            let userAvgPoints =
+                "SELECT AVG(Score) AS avgPoints " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + "; ";
+    
+            let bestMatch =
+                "SELECT Score AS points, PathLength AS pathLength, TimeMs AS time " +
+                "FROM MatchParticipants " +
+                "WHERE UserId = " + database.escape(message.userId) + " " +
+                "ORDER BY points DESC, pathLength DESC, time DESC " +
+                "LIMIT 1; ";
+    
+            queries =
+                userTotalMatches +
+                userTotalPoints +
+                userWins +
+                userAvgPoints +
+                bestMatch;
+        }
+    
+        database.query(queries, function (results, error) {
+            let response;
+    
+            if (error) {
+                response = {
+                    msgType: broker.messageTypes.s_userStatsResponse,
+                    success: false,
+                    correlationId: message.correlationId
+                };
+            } else {
+                if (message.wallUser) {
+                    response = {
+                        msgType: broker.messageTypes.s_userStatsResponse,
+                        success: true,
+                        playerMatches: results[0]?.[0]?.playerMatches || 0,
+                        bestMatchBot: results[1]?.[0],
+                        bestMatchHuman: results[2]?.[0],
+                        correlationId: message.correlationId
+                    };
+                } else {
+                    response = {
+                        msgType: broker.messageTypes.s_userStatsResponse,
+                        success: true,
+                        totalMatches: results[0]?.[0]?.totalMatches || 0,
+                        totalPoints: results[1]?.[0]?.totalPoints || 0,
+                        wonMatches: results[2]?.[0]?.wonMatches || 0,
+                        avgPoints: results[3]?.[0]?.avgPoints || 0,
+                        bestMatch: results[4]?.[0],
+                        correlationId: message.correlationId
+                    };
+                }
+            }
+    
+            broker.sendInClientControlQueue(message.correlationId, response);
+            logs.printWaiting();
+        });
     },
     onEditNicknameRequest: function(message) {
         // message.userId: ID dell'utente
