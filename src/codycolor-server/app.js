@@ -322,7 +322,7 @@ broker.connect({
         });
     },
     // To implement in the future, if we want to separate login and stats
-    toImplementOnGetUserStatsRequest: function (message) {
+    onGetUserStatsRequest: function (message) {
         logs.printLog('User requested statistics');
     
         let queries = "";

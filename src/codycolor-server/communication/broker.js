@@ -277,8 +277,8 @@
                 break;
 
             case messageTypes.c_getUserStats:
-                if (onMessageCallbacks.onGetUserStats !== undefined)
-                    onMessageCallbacks.onGetUserStats(message);
+                if (onMessageCallbacks.onGetUserStatsRequest !== undefined)
+                    onMessageCallbacks.onGetUserStatsRequest(message);
                 break;
             case messageTypes.c_editNicknameRequest:
                 if (onMessageCallbacks.onEditNicknameRequest !== undefined)
