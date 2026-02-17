@@ -77,7 +77,7 @@ broker.connect({
 
 
 
-    }, oldonLogInRequest: function(message) {
+    }, onLogInRequest: function(message) {
         // un client vuole ottenere le informazioni del proprio account memorizzate nel db. Restituiscile
         // in caso l'userId corrisponda
         logs.printLog('A user is trying to log in');
@@ -267,7 +267,8 @@ broker.connect({
             });
         }
     },
-    onLogInRequest: function (message) {
+    // To implement in the future, if we want to separate login and stats
+    toImplementOnLogInRequest: function (message) {
         logs.printLog('A user is trying to log in');
     
         let searchUser;
@@ -320,7 +321,8 @@ broker.connect({
             logs.printWaiting();
         });
     },
-    onGetUserStatsRequest: function (message) {
+    // To implement in the future, if we want to separate login and stats
+    toImplementOnGetUserStatsRequest: function (message) {
         logs.printLog('User requested statistics');
     
         let queries = "";
