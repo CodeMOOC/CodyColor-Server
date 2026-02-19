@@ -395,7 +395,7 @@ broker.connect({
     
             if (error) {
                 response = {
-                    msgType: broker.messageTypes.s_userStatsResponse,
+                    msgType: broker.messageTypes.s_getUserStatsResponse,
                     success: false,
                     correlationId: message.correlationId
                 };
@@ -417,7 +417,7 @@ broker.connect({
                     }
 
                     response = {
-                        msgType: broker.messageTypes.s_userStatsResponse,
+                        msgType: broker.messageTypes.s_getUserStatsResponse,
                         success: true,
                         playerMatches: playerMatches,
                         bestMatchBot: bestMatchBot,
@@ -452,7 +452,7 @@ broker.connect({
                     }
                     
                     response = {
-                        msgType: broker.messageTypes.s_userStatsResponse,
+                        msgType: broker.messageTypes.s_getUserStatsResponse,
                         success: true,
                         totalMatches: totalMatches,
                         totalPoints: totalPoints,

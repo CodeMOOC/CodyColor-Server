@@ -60,8 +60,8 @@
         c_logInRequest:  "c_logInRequest",  // richiedi nickname utente con uid
         s_authResponse:  "s_authResponse",  // fornisci il nickname utente - o messaggio error
 
-        c_getUserStats: "c_getUserStats",  // richiedi statistiche utente
-        s_getUserStats: "s_getUserStats",  // fornisci statistiche utente
+        c_getUserStatsRequest: "c_getUserStatsRequest",  // richiedi statistiche utente
+        s_getUserStatsResponse: "s_getUserStatsResponse",  // fornisci statistiche utente
 
         c_editNicknameRequest: "c_editNicknameRequest", // richiesta cambio nickname
         s_editNicknameResponse: "s_editNicknameResponse", // conferma cambio nickname
@@ -276,7 +276,7 @@
                     onMessageCallbacks.onLogInRequest(message);
                 break;
 
-            case messageTypes.c_getUserStats:
+            case messageTypes.c_getUserStatsRequest:
                 if (onMessageCallbacks.onGetUserStatsRequest !== undefined)
                     onMessageCallbacks.onGetUserStatsRequest(message);
                 break;
