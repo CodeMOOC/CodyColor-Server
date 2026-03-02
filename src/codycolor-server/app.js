@@ -539,7 +539,10 @@ broker.connect({
         logs.printLog('Received ranking request');
 
         // Check if a userId exists in the message
-        let hasUser = message.userId !== undefined && message.userId !== null;
+        let hasUser =
+            message.userId !== undefined &&
+            message.userId !== null &&
+            message.userId !== "";
         // Escape or sanitize userId if it exists
         let escapedUserId = hasUser ? database.escape(message.userId) : null;
 
