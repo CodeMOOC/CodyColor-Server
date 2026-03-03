@@ -538,6 +538,8 @@ broker.connect({
         // un client ha richiesto dati relativi alle classifiche. Restituiscili.
         logs.printLog('Received ranking request');
 
+        const minDate = "2019-12-19 00:00:00";
+
         // Check if a userId exists in the message
         let hasUser =
             message.userId !== undefined &&
@@ -546,6 +548,9 @@ broker.connect({
         // Escape or sanitize userId if it exists
         let escapedUserId = hasUser ? database.escape(message.userId) : null;
 
+        // Restituisce la top 10 dei giocatori registrati di oggi, ordinata per: 
+        // Punti totali accumulati oggi
+        // Numero di partite vinte (come criterio di spareggio
         let top10PointsDaily =
             "SELECT U.Nickname AS nickname, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
             "FROM Users U INNER JOIN MatchParticipants MP " +
@@ -555,40 +560,34 @@ broker.connect({
             "ORDER BY points DESC, wonMatches DESC " +
             "LIMIT 10; ";
 
+        // Top 10 globale (da una data minima in poi) basata su
+        // Punti totali accumulati
+        // Partite vinte
         let top10PointsGlobal =
             "SELECT U.Nickname AS nickname, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches " +
             "FROM Users U INNER JOIN MatchParticipants MP " +
             "ON U.Id = MP.UserId " +
-            "WHERE MP.Registered = 1 " +
+            "WHERE MP.Registered = 1 AND MP.BeginTimestamp >= '2019-12-19 00:00:00' " +
             "GROUP BY U.Id " +
             "ORDER BY points DESC, wonMatches DESC " +
             "LIMIT 10; ";
 
+        // Top 10 migliori singole partite di oggi
         let top10MatchDaily =
-            "SELECT * " +
-            "FROM (" +
-            "      (" +
-            "       SELECT U.Nickname AS nickname, MP.Score AS points, MP.PathLength AS pathLength, " +
-            "       MP.TimeMs as time " +
-            "       FROM Users U INNER JOIN MatchParticipants MP " +
-            "       ON U.Id = MP.UserId " +
-            "       WHERE MP.Registered = 1 AND DATE(MP.BeginTimestamp) = CURDATE()" +
-            "       ORDER BY points DESC, pathLength DESC, time DESC " +
-            "       LIMIT 10" +
-            "      ) " +
-            "      UNION " +
-            "      (" +
-            "       SELECT 'Anonymous' AS nickname, MP.Score AS points, MP.PathLength AS pathLength, " +
-            "       MP.TimeMs as time " +
-            "       FROM MatchParticipants MP " +
-            "       WHERE MP.Registered = 0 AND DATE(MP.BeginTimestamp) = CURDATE()" +
-            "       ORDER BY points DESC, pathLength DESC, time DESC  " +
-            "       LIMIT 10 " +
-            "      ) " +
-            "     ) top10MatchDaily " +
-            "ORDER BY points DESC " +
-            "LIMIT 10; ";
+            `SELECT
+            CASE WHEN MP.Registered = 1 THEN U.Nickname ELSE 'Anonymous' END AS nickname,
+            MP.Score AS points,
+            MP.PathLength AS pathLength,
+            MP.TimeMs AS time
+            FROM MatchParticipants MP
+            LEFT JOIN Users U ON U.Id = MP.UserId
+            WHERE DATE(MP.BeginTimestamp) = CURDATE()
+            ORDER BY points DESC, pathLength DESC, time DESC
+            LIMIT 10;`
 
+        // Restituisce la top 10 delle migliori partite globali, includendo:
+        // utenti registrati
+        // utenti anonimi
         let top10MatchGlobal =
             "SELECT * " +
             "FROM (" +
@@ -597,7 +596,7 @@ broker.connect({
             "       MP.TimeMs as time " +
             "       FROM Users U INNER JOIN MatchParticipants MP " +
             "       ON U.Id = MP.UserId " +
-            "       WHERE MP.Registered = 1 " +
+            "       WHERE MP.Registered = 1 AND MP.BeginTimestamp >= '2019-12-19 00:00:00' " +
             "       ORDER BY points DESC, pathLength DESC, time DESC  " +
             "       LIMIT 10" +
             "      ) " +
@@ -606,7 +605,7 @@ broker.connect({
             "       SELECT 'Anonymous' AS nickname, MP.Score AS points, MP.PathLength AS pathLength, " +
             "       MP.TimeMs as time " +
             "       FROM MatchParticipants MP " +
-            "       WHERE MP.Registered = 0 " +
+            "       WHERE MP.Registered = 0 AND MP.BeginTimestamp >= '2019-12-19 00:00:00' " +
             "       ORDER BY points DESC, pathLength DESC, time DESC  " +
             "       LIMIT 10 " +
             "      ) " +
@@ -616,56 +615,80 @@ broker.connect({
 
 
         let myGlobalPointsStats = hasUser ? 
-            `SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches 
-             FROM MatchParticipants 
-             WHERE Registered = 1 AND UserId = ${escapedUserId};` 
+            `SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches
+            FROM MatchParticipants
+            WHERE Registered = 1
+            AND UserId = ${escapedUserId}
+            AND BeginTimestamp >= '${minDate}';` 
             : "";
-
+  
 
         let myGlobalPointsRank = 
         hasUser 
                 ? `SELECT 1 + COUNT(*) AS position
                 FROM (
-                 SELECT U.Id, SUM(MP.Score) AS points, SUM(MP.Winner) AS wonMatches
+                 SELECT U.Id, COALESCE(SUM(Score), 0) AS points, COALESCE(SUM(Winner), 0) AS wonMatches
                  FROM Users U
                  JOIN MatchParticipants MP ON U.Id = MP.UserId
-                 WHERE MP.Registered = 1
+                 WHERE MP.Registered = 1 AND MP.BeginTimestamp >= '${minDate}'
                  GROUP BY U.Id
                 ) ranked
-                WHERE points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId})
-                 OR (points = (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId})
-                    AND wonMatches > (SELECT SUM(Winner) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId}));`
+                WHERE points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId} AND BeginTimestamp >= '${minDate}')
+                 OR (points = (
+                SELECT SUM(Score)
+                FROM MatchParticipants
+                WHERE Registered = 1
+                AND UserId = ${escapedUserId}
+                AND BeginTimestamp >= '${minDate}'
+                )
+                AND wonMatches > (
+                SELECT SUM(Winner)
+                FROM MatchParticipants
+                WHERE Registered = 1
+                AND UserId = ${escapedUserId}
+                AND BeginTimestamp >= '${minDate}'
+                ));;`
                 :  "";
 
         let myBestGlobalMatch = hasUser
-                    ? "SELECT " +
-                    "MP.Score AS points, " +
-                    "MP.PathLength AS pathLength, " +
-                    "MP.TimeMs AS time " +
-                    "FROM MatchParticipants MP " +
-                    "WHERE MP.Registered = 1 " +
-                    "AND MP.UserId = " + escapedUserId + " " +
-                    "ORDER BY MP.Score DESC, MP.PathLength DESC, MP.TimeMs DESC " +
-                    "LIMIT 1; "
-                    : "";
+                ? `SELECT MP.Score AS points,
+                          MP.PathLength AS pathLength,
+                          MP.TimeMs AS time
+                   FROM MatchParticipants MP
+                   WHERE MP.Registered = 1
+                   AND MP.UserId = ${escapedUserId}
+                   AND MP.BeginTimestamp >= '${minDate}'
+                   ORDER BY MP.Score DESC, MP.PathLength DESC, MP.TimeMs DESC
+                   LIMIT 1;`
+                : "";
 
-        let myGlobalMatchRank = hasUser
-                    ? "SELECT 1 + COUNT(*) AS position " +
-                      "FROM MatchParticipants MP " +
-                      "WHERE MP.Registered = 1 " +
-                      "AND ( " +
-                      "   MP.Score > (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "   OR ( " +
-                      "       MP.Score = (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "       AND MP.PathLength > (SELECT PathLength FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "   ) " +
-                      "   OR ( " +
-                      "       MP.Score = (SELECT Score FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "       AND MP.PathLength = (SELECT PathLength FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "       AND MP.TimeMs > (SELECT TimeMs FROM MatchParticipants WHERE Registered = 1 AND UserId = " + escapedUserId + " ORDER BY Score DESC, PathLength DESC, TimeMs DESC LIMIT 1) " +
-                      "   ) " +
-                      "); "
-                    : "";
+                let myGlobalMatchRank = hasUser
+                ? `SELECT 1 + COUNT(*) AS position
+                   FROM MatchParticipants MP
+                   JOIN (
+                        SELECT Score, PathLength, TimeMs
+                        FROM MatchParticipants
+                        WHERE Registered = 1
+                        AND UserId = ${escapedUserId}
+                        AND BeginTimestamp >= '${minDate}'
+                        ORDER BY Score DESC, PathLength DESC, TimeMs DESC
+                        LIMIT 1
+                   ) AS myBest
+                   WHERE MP.Registered = 1
+                   AND MP.BeginTimestamp >= '${minDate}'
+                   AND (
+                        MP.Score > myBest.Score
+                        OR (
+                            MP.Score = myBest.Score
+                            AND MP.PathLength > myBest.PathLength
+                        )
+                        OR (
+                            MP.Score = myBest.Score
+                            AND MP.PathLength = myBest.PathLength
+                            AND MP.TimeMs > myBest.TimeMs
+                        )
+                   );`
+                : "";
 
         let queries =
                     top10PointsDaily +
