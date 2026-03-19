@@ -574,11 +574,9 @@ broker.connect({
             
         // Top 10 migliori singole partite di oggi
         let top10MatchDaily =
-                `SET @row_num := 0;
-                SELECT
-                CASE 
-                WHEN MP.Registered = 1 THEN MP.Nickname 
-                ELSE CONCAT('Player_', @row_num := @row_num + 1) 
+                `SELECT
+                CASE WHEN MP.Nickname IS NOT NULL AND MP.Nickname <> '' THEN MP.Nickname
+                   ELSE CONCAT('Player_', MP.Ordinal)
                 END AS nickname,
                 MP.Score AS points,
                 MP.PathLength AS pathLength,
@@ -593,10 +591,9 @@ broker.connect({
         // utenti registrati
         // utenti anonimi
         let top10MatchGlobal =
-            `SET @row_num := 0;
-            SELECT 
-            CASE WHEN MP.Registered = 1 THEN MP.Nickname 
-            ELSE CONCAT('Player_', @row_num := @row_num + 1) 
+            `SELECT 
+            CASE WHEN MP.Nickname IS NOT NULL AND MP.Nickname <> '' THEN MP.Nickname
+               ELSE CONCAT('Player_', MP.Ordinal)
             END AS nickname,
             MP.Score AS points,
             MP.PathLength AS pathLength,
