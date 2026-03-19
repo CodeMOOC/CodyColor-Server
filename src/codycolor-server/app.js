@@ -538,7 +538,7 @@ broker.connect({
         // un client ha richiesto dati relativi alle classifiche. Restituiscili.
         logs.printLog('Received ranking request');
 
-        const minDate = "2019-12-19 00:00:00";
+        const minDate = "2020-01-01 00:00:00";
 
         // Check if a userId exists in the message
         let hasUser =
@@ -571,11 +571,11 @@ broker.connect({
             "GROUP BY U.Id " +
             "ORDER BY points DESC, wonMatches DESC " +
             "LIMIT 10; ";
-
+            
         // Top 10 migliori singole partite di oggi
         let top10MatchDaily =
             `SELECT
-            CASE WHEN MP.Registered = 1 THEN U.Nickname ELSE 'Anonymous' END AS nickname,
+            CASE WHEN MP.Registered = 1 THEN MP.Nickname ELSE CONCAT('Player_', ROW_NUMBER() OVER (ORDER BY MP.BeginTimestamp)) END AS nickname,
             MP.Score AS points,
             MP.PathLength AS pathLength,
             MP.TimeMs AS time
@@ -589,29 +589,16 @@ broker.connect({
         // utenti registrati
         // utenti anonimi
         let top10MatchGlobal =
-            "SELECT * " +
-            "FROM (" +
-            "      (" +
-            "       SELECT U.Nickname AS nickname, MP.Score AS points, MP.PathLength AS pathLength, " +
-            "       MP.TimeMs as time " +
-            "       FROM Users U INNER JOIN MatchParticipants MP " +
-            "       ON U.Id = MP.UserId " +
-            "       WHERE MP.Registered = 1 AND MP.BeginTimestamp >= '2019-12-19 00:00:00' " +
-            "       ORDER BY points DESC, pathLength DESC, time DESC  " +
-            "       LIMIT 10" +
-            "      ) " +
-            "      UNION " +
-            "      (" +
-            "       SELECT 'Anonymous' AS nickname, MP.Score AS points, MP.PathLength AS pathLength, " +
-            "       MP.TimeMs as time " +
-            "       FROM MatchParticipants MP " +
-            "       WHERE MP.Registered = 0 AND MP.BeginTimestamp >= '2019-12-19 00:00:00' " +
-            "       ORDER BY points DESC, pathLength DESC, time DESC  " +
-            "       LIMIT 10 " +
-            "      ) " +
-            "     ) top10MatchGlobal " +
-            "ORDER BY points DESC " +
-            "LIMIT 10;";
+            `SELECT 
+            CASE WHEN MP.Registered = 1 THEN MP.Nickname ELSE CONCAT('Player_', ROW_NUMBER() OVER (ORDER BY MP.BeginTimestamp)) END AS nickname,
+            MP.Score AS points,
+            MP.PathLength AS pathLength,
+            MP.TimeMs AS time
+            FROM MatchParticipants MP
+            LEFT JOIN Users U ON U.Id = MP.UserId
+            WHERE MP.BeginTimestamp >= '${minDate}'
+            ORDER BY points DESC, pathLength DESC, time ASC
+            LIMIT 10;`
 
 
         let myGlobalPointsStats = hasUser ? 
