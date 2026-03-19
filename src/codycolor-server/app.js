@@ -574,23 +574,30 @@ broker.connect({
             
         // Top 10 migliori singole partite di oggi
         let top10MatchDaily =
-            `SELECT
-            CASE WHEN MP.Registered = 1 THEN MP.Nickname ELSE CONCAT('Player_', ROW_NUMBER() OVER (ORDER BY MP.BeginTimestamp)) END AS nickname,
-            MP.Score AS points,
-            MP.PathLength AS pathLength,
-            MP.TimeMs AS time
-            FROM MatchParticipants MP
-            LEFT JOIN Users U ON U.Id = MP.UserId
-            WHERE DATE(MP.BeginTimestamp) = CURDATE()
-            ORDER BY points DESC, pathLength DESC, time DESC
-            LIMIT 10;`
+                `SET @row_num := 0;
+                SELECT
+                CASE 
+                WHEN MP.Registered = 1 THEN MP.Nickname 
+                ELSE CONCAT('Player_', @row_num := @row_num + 1) 
+                END AS nickname,
+                MP.Score AS points,
+                MP.PathLength AS pathLength,
+                MP.TimeMs AS time
+                FROM MatchParticipants MP
+                LEFT JOIN Users U ON U.Id = MP.UserId
+                WHERE DATE(MP.BeginTimestamp) = CURDATE()
+                ORDER BY points DESC, pathLength DESC, time DESC
+                LIMIT 10;`
 
         // Restituisce la top 10 delle migliori partite globali, includendo:
         // utenti registrati
         // utenti anonimi
         let top10MatchGlobal =
-            `SELECT 
-            CASE WHEN MP.Registered = 1 THEN MP.Nickname ELSE CONCAT('Player_', ROW_NUMBER() OVER (ORDER BY MP.BeginTimestamp)) END AS nickname,
+            `SET @row_num := 0;
+            SELECT 
+            CASE WHEN MP.Registered = 1 THEN MP.Nickname 
+            ELSE CONCAT('Player_', @row_num := @row_num + 1) 
+            END AS nickname,
             MP.Score AS points,
             MP.PathLength AS pathLength,
             MP.TimeMs AS time
@@ -601,17 +608,19 @@ broker.connect({
             LIMIT 10;`
 
 
-        let myGlobalPointsStats = hasUser ? 
-            `SELECT SUM(Score) AS points, SUM(Winner) AS wonMatches
-            FROM MatchParticipants
-            WHERE Registered = 1
-            AND UserId = ${escapedUserId}
-            AND BeginTimestamp >= '${minDate}';` 
-            : "";
+       
   
+        let myGlobalPointsStats = hasUser ? 
+                `SELECT 
+                COALESCE(SUM(Score), 0) AS points, 
+                COALESCE(SUM(Winner), 0) AS wonMatches
+                FROM MatchParticipants
+                WHERE Registered = 1
+                AND UserId = ${escapedUserId}
+                AND BeginTimestamp >= '${minDate}';` 
+                : "";
 
-        let myGlobalPointsRank = 
-        hasUser 
+        let myGlobalPointsRank = hasUser 
                 ? `SELECT 1 + COUNT(*) AS position
                 FROM (
                  SELECT U.Id, COALESCE(SUM(Score), 0) AS points, COALESCE(SUM(Winner), 0) AS wonMatches
@@ -620,22 +629,26 @@ broker.connect({
                  WHERE MP.Registered = 1 AND MP.BeginTimestamp >= '${minDate}'
                  GROUP BY U.Id
                 ) ranked
-                WHERE points > (SELECT SUM(Score) FROM MatchParticipants WHERE Registered = 1 AND UserId = ${escapedUserId} AND BeginTimestamp >= '${minDate}')
-                 OR (points = (
-                SELECT SUM(Score)
+                WHERE points > (SELECT COALESCE(SUM(Score), 0) 
+                FROM MatchParticipants 
+                WHERE Registered = 1 AND UserId = ${escapedUserId} AND BeginTimestamp >= '${minDate}')
+                OR (points = (
+                SELECT COALESCE(SUM(Score), 0)
                 FROM MatchParticipants
                 WHERE Registered = 1
                 AND UserId = ${escapedUserId}
                 AND BeginTimestamp >= '${minDate}'
                 )
                 AND wonMatches > (
-                SELECT SUM(Winner)
+                SELECT COALESCE(SUM(Winner), 0)
                 FROM MatchParticipants
                 WHERE Registered = 1
                 AND UserId = ${escapedUserId}
                 AND BeginTimestamp >= '${minDate}'
-                ));;`
-                :  "";
+                )
+            );`
+            :  "";
+                
 
         let myBestGlobalMatch = hasUser
                 ? `SELECT MP.Score AS points,
@@ -649,7 +662,7 @@ broker.connect({
                    LIMIT 1;`
                 : "";
 
-                let myGlobalMatchRank = hasUser
+        let myGlobalMatchRank = hasUser
                 ? `SELECT 1 + COUNT(*) AS position
                    FROM MatchParticipants MP
                    JOIN (
