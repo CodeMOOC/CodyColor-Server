@@ -928,6 +928,10 @@ gameRoomCallbacks = {
         let numPlayers = 0;
         let anonUsers = 0;
 
+        let tiles = gameRoomData.gameData.tiles 
+            ? database.escape(gameRoomData.gameData.tiles)
+            : null;
+
         let updateSession = "UPDATE GameSessions SET NumMatches = " + gameRoomData.gameData.matchCount + " "
             + "WHERE Id = " + gameRoomData.sessionId;
         database.query(updateSession);
@@ -938,11 +942,13 @@ gameRoomCallbacks = {
             }
         }
 
-        let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers) "
+        let insertMatch = "INSERT INTO GameMatches (SessionId, BeginTimestamp, NumUsers, Tiles) "
             + "VALUES ("
             + gameRoomData.sessionId + ", "
             + database.escape(dateTimeNow) + ", "
-            + numPlayers + ")";
+            + numPlayers + ", "
+            + tiles
+            + ")";
 
         database.query(insertMatch, function (results, error) {
             if (!error) {
@@ -957,10 +963,13 @@ gameRoomCallbacks = {
                         let winner = gameRoomData.players[i].gameData.match.winner === true ? 1 : 0;
                         let registered = gameRoomData.players[i].userId !== undefined ? 1 : 0;
                         let isWallUser = (gameRoomData.players[i].gameData.organizer && gameRoomData.isWall) ? 1 : 0;
+                        let side = gameRoomData.players[i].gameData.match.startPosition.side;
+                        let distance = gameRoomData.players[i].gameData.match.startPosition.distance;
+
 
                         insertAllParticipants +=
                             "INSERT INTO MatchParticipants " +
-                            "(SessionId, MatchId, UserId, Ordinal, Nickname, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner) " +
+                            "(SessionId, MatchId, UserId, Ordinal, Nickname, Registered, IsWallUser, BeginTimestamp, Score, PathLength, TimeMs, Winner, Side, Distance) " +
                             "VALUES (" +
                             gameRoomData.sessionId + ", " +
                             results.insertId + ", " +
@@ -973,7 +982,9 @@ gameRoomCallbacks = {
                             gameRoomData.players[i].gameData.match.points + ", " +
                             gameRoomData.players[i].gameData.match.pathLength + ", " +
                             gameRoomData.players[i].gameData.match.time + ", " +
-                            winner +
+                            winner  + ", " +
+                            side + ", " +
+                            distance +
                             ");";
                     }
                 }
